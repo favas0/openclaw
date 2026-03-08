@@ -25,8 +25,6 @@ SUPPLIER_FIT_GOOD_TERMS = {
     "storage",
     "shelf",
     "fitness",
-    "ergonomic",
-    "footrest",
 }
 
 RISK_TERMS = {
@@ -41,9 +39,73 @@ RISK_TERMS = {
     "gun",
 }
 
+FITNESS_TERMS = {
+    "walkingpad",
+    "treadmill",
+    "fitness",
+    "incline",
+    "cardio",
+    "exercise",
+    "bike",
+    "dumbbell",
+    "elliptical",
+    "rower",
+}
+
+FURNITURE_TERMS = {
+    "desk",
+    "officechair",
+    "chair",
+    "footrest",
+    "reclining",
+    "cabinet",
+    "wardrobe",
+    "bed",
+    "sofa",
+    "table",
+    "shelf",
+    "storage",
+    "drawer",
+    "mattress",
+}
+
+AUTO_TERMS = {
+    "engine",
+    "bumper",
+    "mirror",
+    "tyre",
+    "tire",
+    "diesel",
+}
+
 
 def clamp(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
+
+
+def token_words(text: str) -> set[str]:
+    return set((text or "").split())
+
+
+def category_group_hits(words: set[str]) -> int:
+    groups = [
+        FITNESS_TERMS,
+        FURNITURE_TERMS,
+        AUTO_TERMS,
+    ]
+    return sum(1 for group in groups if words & group)
+
+
+def mixed_category_penalty(words: set[str]) -> float:
+    return 3.0 if category_group_hits(words) >= 2 else 0.0
+
+
+def weak_evidence_penalty(cluster: Any) -> float:
+    if cluster.listing_count <= 1 and cluster.seller_count <= 1:
+        return 1.5
+    if cluster.listing_count <= 2 and cluster.seller_count <= 1:
+        return 0.75
+    return 0.0
 
 
 def estimate_supplier_cost(sell_price: float | None) -> float | None:
@@ -56,7 +118,7 @@ def estimate_shipping_cost(cluster_title: str, sell_price: float | None) -> floa
     if sell_price is None:
         return None
 
-    words = set(cluster_title.split())
+    words = token_words(cluster_title)
 
     if {"desk", "treadmill", "officechair", "wardrobe", "sofa", "bed"} & words:
         return 20.0
@@ -103,7 +165,7 @@ def competition_score(cluster: Any) -> float:
 
 
 def supplier_fit_score(cluster: Any) -> float:
-    words = set(cluster.cluster_title.split())
+    words = token_words(cluster.cluster_title)
     score = 5.0
 
     if words & SUPPLIER_FIT_GOOD_TERMS:
@@ -114,11 +176,14 @@ def supplier_fit_score(cluster: Any) -> float:
     if cluster.median_total_price is not None and 120 <= cluster.median_total_price <= 600:
         score += 1.0
 
+    score -= mixed_category_penalty(words)
+    score -= weak_evidence_penalty(cluster)
+
     return round(clamp(score, 0.0, 10.0), 2)
 
 
 def risk_score(cluster: Any) -> float:
-    words = set(cluster.cluster_title.split())
+    words = token_words(cluster.cluster_title)
     score = 0.0
 
     score += cluster.brand_risk_count * 2.0
@@ -128,6 +193,9 @@ def risk_score(cluster: Any) -> float:
 
     if cluster.median_total_price is not None and cluster.median_total_price > 500:
         score += 1.0
+
+    score += mixed_category_penalty(words)
+    score += weak_evidence_penalty(cluster)
 
     return round(clamp(score, 0.0, 10.0), 2)
 
@@ -163,6 +231,7 @@ def estimate_unit_economics(cluster: Any) -> dict[str, float | None]:
 
 def recommendation_from_scores(
     *,
+    cluster: Any,
     demand: float,
     sales_signal: float,
     competition: float,
@@ -174,6 +243,15 @@ def recommendation_from_scores(
 
     if max_cpa is None:
         return "avoid", "Missing price data"
+
+    if cluster.listing_count <= 1 and cluster.seller_count <= 1:
+        notes.append("thin evidence so far")
+    elif cluster.listing_count >= 3 and cluster.seller_count >= 2:
+        notes.append("better evidence across sellers")
+
+    words = token_words(cluster.cluster_title)
+    if mixed_category_penalty(words) > 0:
+        notes.append("cluster looks mixed or noisy")
 
     if max_cpa >= 35:
         notes.append("strong CPA headroom")
@@ -198,7 +276,9 @@ def recommendation_from_scores(
         notes.append("low obvious risk")
 
     if (
-        demand >= 6
+        cluster.listing_count >= 3
+        and cluster.seller_count >= 2
+        and demand >= 6
         and sales_signal >= 5
         and competition <= 6
         and supplier_fit >= 6
@@ -220,6 +300,7 @@ def recommendation_from_scores(
 
 def total_score(
     *,
+    cluster: Any,
     demand: float,
     sales_signal: float,
     competition: float,
@@ -238,6 +319,8 @@ def total_score(
         elif max_cpa >= 5:
             cpa_score = 2.0
 
+    evidence_penalty = weak_evidence_penalty(cluster)
+
     score = (
         demand * 1.5
         + sales_signal * 1.5
@@ -245,6 +328,7 @@ def total_score(
         + cpa_score * 1.8
         - competition * 1.0
         - risk * 1.3
+        - evidence_penalty
     )
     return round(score, 2)
 
@@ -259,6 +343,7 @@ def score_cluster(cluster: Any) -> dict[str, Any]:
     economics = estimate_unit_economics(cluster)
 
     recommendation, notes = recommendation_from_scores(
+        cluster=cluster,
         demand=demand,
         sales_signal=sales_signal,
         competition=competition,
@@ -268,6 +353,7 @@ def score_cluster(cluster: Any) -> dict[str, Any]:
     )
 
     final_total = total_score(
+        cluster=cluster,
         demand=demand,
         sales_signal=sales_signal,
         competition=competition,

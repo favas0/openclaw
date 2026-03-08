@@ -17,15 +17,18 @@ from app.db.repo import (
     finish_ingestion_run,
     get_cluster_summary,
     get_normalized_listings,
+    get_product_clusters,
     get_raw_listings,
     get_run_summary,
     get_score_summary,
     insert_raw_listing,
+    upsert_cluster_score,
     upsert_normalized_listing,
     upsert_product_cluster,
 )
 from app.normalize.processor import normalize_raw_listing
 from app.reporting.rankings import write_ranked_csv, write_ranked_markdown
+from app.scoring.cluster_scoring import score_cluster
 from app.sources.ebay import (
     EbayClient,
     extract_item_summaries,
@@ -215,6 +218,7 @@ def collect_ebay(
                 }
             )
         except Exception as exc:
+            db.rollback()
             finish_ingestion_run(
                 db,
                 run_id=run.id,
@@ -280,6 +284,42 @@ def cluster_products():
                 "status": "completed",
                 "normalized_seen": len(normalized_rows),
                 "clusters_written": len(clusters),
+            }
+        )
+
+
+@app.command("score-products")
+def score_products():
+    with SessionLocal() as db:
+        clusters = get_product_clusters(db)
+        written = 0
+
+        for cluster in clusters:
+            score = score_cluster(cluster)
+            upsert_cluster_score(
+                db,
+                cluster_id=cluster.id,
+                demand_score=score["demand_score"],
+                sales_signal_score=score["sales_signal_score"],
+                competition_score=score["competition_score"],
+                supplier_fit_score=score["supplier_fit_score"],
+                risk_score=score["risk_score"],
+                sell_price_estimate=score["sell_price_estimate"],
+                supplier_cost_estimate=score["supplier_cost_estimate"],
+                shipping_cost_estimate=score["shipping_cost_estimate"],
+                fees_estimate=score["fees_estimate"],
+                gross_profit_estimate=score["gross_profit_estimate"],
+                max_cpa=score["max_cpa"],
+                total_score=score["total_score"],
+                recommendation=score["recommendation"],
+                notes=score["notes"],
+            )
+            written += 1
+
+        print_json(
+            {
+                "status": "completed",
+                "clusters_scored": written,
             }
         )
 

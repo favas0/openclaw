@@ -22,6 +22,12 @@ STOPWORDS = {
     "in",
     "of",
     "home",
+    "remote",
+    "control",
+    "led",
+    "display",
+    "quiet",
+    "portable",
 }
 
 BRAND_RISK_TERMS = {
@@ -48,6 +54,9 @@ TOKEN_REPLACEMENTS = {
     "standing desk": "standingdesk",
     "walking pad": "walkingpad",
     "office chair": "officechair",
+    "sit stand": "sitstand",
+    "2 in 1": "2in1",
+    "l shaped": "lshaped",
 }
 
 

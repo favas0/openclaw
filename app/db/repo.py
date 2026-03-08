@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from datetime import datetime
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -45,6 +48,7 @@ def finish_ingestion_run(
     run.status = status
     run.listings_found = listings_found
     run.notes = notes
+    run.finished_at = datetime.utcnow()
     db.add(run)
     db.commit()
     db.refresh(run)
@@ -69,8 +73,17 @@ def insert_raw_listing(
     category: str | None = None,
     condition: str | None = None,
     is_sold_signal: bool = False,
-    raw_payload: dict | None = None,
+    raw_payload: dict | str | None = None,
 ) -> RawListing:
+    payload_text: str | None
+
+    if raw_payload is None:
+        payload_text = None
+    elif isinstance(raw_payload, str):
+        payload_text = raw_payload
+    else:
+        payload_text = json.dumps(raw_payload, ensure_ascii=False)
+
     row = RawListing(
         run_id=run_id,
         source_name=source_name,
@@ -87,7 +100,7 @@ def insert_raw_listing(
         category=category,
         condition=condition,
         is_sold_signal=is_sold_signal,
-        raw_payload=raw_payload,
+        raw_payload=payload_text,
     )
     db.add(row)
     db.commit()
@@ -137,6 +150,7 @@ def upsert_product_cluster(db: Session, **kwargs) -> ProductCluster:
     if existing:
         for key, value in kwargs.items():
             setattr(existing, key, value)
+        existing.updated_at = datetime.utcnow()
         db.add(existing)
         db.commit()
         db.refresh(existing)
@@ -147,6 +161,14 @@ def upsert_product_cluster(db: Session, **kwargs) -> ProductCluster:
     db.commit()
     db.refresh(row)
     return row
+
+
+def get_product_clusters(db: Session) -> list[ProductCluster]:
+    stmt = select(ProductCluster).order_by(
+        ProductCluster.listing_count.desc(),
+        ProductCluster.id.asc(),
+    )
+    return list(db.scalars(stmt).all())
 
 
 def assign_listing_to_cluster(
@@ -166,6 +188,62 @@ def assign_listing_to_cluster(
     return row
 
 
+def upsert_cluster_score(
+    db: Session,
+    *,
+    cluster_id: int,
+    demand_score: float,
+    sales_signal_score: float,
+    competition_score: float,
+    supplier_fit_score: float,
+    risk_score: float,
+    sell_price_estimate: float | None,
+    supplier_cost_estimate: float | None,
+    shipping_cost_estimate: float | None,
+    fees_estimate: float | None,
+    gross_profit_estimate: float | None,
+    max_cpa: float | None,
+    total_score: float,
+    recommendation: str,
+    notes: str | None,
+) -> ClusterScore:
+    stmt = select(ClusterScore).where(ClusterScore.cluster_id == cluster_id)
+    existing = db.scalar(stmt)
+
+    values = {
+        "cluster_id": cluster_id,
+        "demand_score": demand_score,
+        "sales_signal_score": sales_signal_score,
+        "competition_score": competition_score,
+        "supplier_fit_score": supplier_fit_score,
+        "risk_score": risk_score,
+        "sell_price_estimate": sell_price_estimate,
+        "supplier_cost_estimate": supplier_cost_estimate,
+        "shipping_cost_estimate": shipping_cost_estimate,
+        "fees_estimate": fees_estimate,
+        "gross_profit_estimate": gross_profit_estimate,
+        "max_cpa": max_cpa,
+        "total_score": total_score,
+        "recommendation": recommendation,
+        "notes": notes,
+    }
+
+    if existing:
+        for key, value in values.items():
+            setattr(existing, key, value)
+        existing.updated_at = datetime.utcnow()
+        db.add(existing)
+        db.commit()
+        db.refresh(existing)
+        return existing
+
+    row = ClusterScore(**values)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
 def get_run_summary(db: Session) -> list[dict]:
     stmt = select(IngestionRun).order_by(IngestionRun.id.desc())
     rows = db.scalars(stmt).all()
@@ -178,7 +256,8 @@ def get_run_summary(db: Session) -> list[dict]:
             "status": row.status,
             "listings_found": row.listings_found,
             "notes": row.notes,
-            "created_at": row.created_at,
+            "started_at": row.started_at,
+            "finished_at": row.finished_at,
         }
         for row in rows
     ]

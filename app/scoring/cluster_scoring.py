@@ -1,6 +1,49 @@
 from typing import Any
 
 
+def _as_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def enrichment_adjustment(cluster: Any) -> dict[str, Any]:
+    visual_hook_score = _as_int(getattr(cluster, "visual_hook_score", 0))
+    fragility_risk = _as_int(getattr(cluster, "fragility_risk", 0))
+    assembly_complexity = _as_int(getattr(cluster, "assembly_complexity", 0))
+    confidence_score = _as_int(getattr(cluster, "confidence_score", 0))
+
+    visual_bonus = round(visual_hook_score * 0.30, 2)
+    confidence_bonus = round(confidence_score * 0.20, 2)
+    fragility_penalty = round(fragility_risk * 0.40, 2)
+    assembly_penalty = round(assembly_complexity * 0.25, 2)
+
+    total_adjustment = round(
+        visual_bonus + confidence_bonus - fragility_penalty - assembly_penalty,
+        2,
+    )
+
+    notes: list[str] = []
+    if visual_hook_score >= 7:
+        notes.append(f"strong visual hook (+{visual_bonus})")
+    if confidence_score >= 7:
+        notes.append(f"high enrichment confidence (+{confidence_bonus})")
+    if fragility_risk >= 6:
+        notes.append(f"fragility risk (-{fragility_penalty})")
+    if assembly_complexity >= 6:
+        notes.append(f"assembly complexity (-{assembly_penalty})")
+
+    return {
+        "visual_hook_score": visual_hook_score,
+        "fragility_risk": fragility_risk,
+        "assembly_complexity": assembly_complexity,
+        "confidence_score": confidence_score,
+        "total_adjustment": total_adjustment,
+        "notes": notes,
+    }
+
+
 SUPPLIER_FIT_BAD_TERMS = {
     "sofa",
     "wardrobe",
@@ -352,7 +395,7 @@ def score_cluster(cluster: Any) -> dict[str, Any]:
         max_cpa=economics["max_cpa"],
     )
 
-    final_total = total_score(
+    base_total = total_score(
         cluster=cluster,
         demand=demand,
         sales_signal=sales_signal,
@@ -361,6 +404,14 @@ def score_cluster(cluster: Any) -> dict[str, Any]:
         risk=risk,
         max_cpa=economics["max_cpa"],
     )
+
+    enrichment = enrichment_adjustment(cluster)
+    final_total = round(base_total + enrichment["total_adjustment"], 2)
+
+    combined_notes = list(notes.split("; ")) if isinstance(notes, str) and notes else []
+    combined_notes.extend(enrichment["notes"])
+    combined_notes = [item for item in combined_notes if item]
+    final_notes = "; ".join(combined_notes)
 
     return {
         "demand_score": demand,
@@ -374,7 +425,13 @@ def score_cluster(cluster: Any) -> dict[str, Any]:
         "fees_estimate": economics["fees_estimate"],
         "gross_profit_estimate": economics["gross_profit_estimate"],
         "max_cpa": economics["max_cpa"],
+        "visual_hook_score": enrichment["visual_hook_score"],
+        "fragility_risk": enrichment["fragility_risk"],
+        "assembly_complexity": enrichment["assembly_complexity"],
+        "confidence_score": enrichment["confidence_score"],
+        "enrichment_adjustment": enrichment["total_adjustment"],
+        "base_total_score": base_total,
         "total_score": final_total,
         "recommendation": recommendation,
-        "notes": notes,
+        "notes": final_notes,
     }

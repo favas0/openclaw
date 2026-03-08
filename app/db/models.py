@@ -69,6 +69,35 @@ class RawListing(Base):
     )
 
 
+class ProductCluster(Base):
+    __tablename__ = "product_clusters"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    cluster_key: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    cluster_title: Mapped[str] = mapped_column(Text, index=True)
+
+    source_name: Mapped[str] = mapped_column(String(50), index=True)
+    query: Mapped[str] = mapped_column(String(255), index=True)
+
+    listing_count: Mapped[int] = mapped_column(Integer, default=0)
+    seller_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    min_total_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    max_total_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    avg_total_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    median_total_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    high_ticket_count: Mapped[int] = mapped_column(Integer, default=0)
+    brand_risk_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+    normalized_listings: Mapped[list["NormalizedListing"]] = relationship(
+        back_populates="cluster"
+    )
+
+
 class NormalizedListing(Base):
     __tablename__ = "normalized_listings"
     __table_args__ = (
@@ -77,6 +106,7 @@ class NormalizedListing(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     raw_listing_id: Mapped[int] = mapped_column(ForeignKey("raw_listings.id"), index=True)
+    cluster_id: Mapped[int | None] = mapped_column(ForeignKey("product_clusters.id"), index=True, nullable=True)
 
     source_name: Mapped[str] = mapped_column(String(50), index=True)
     query: Mapped[str] = mapped_column(String(255), index=True)
@@ -101,3 +131,4 @@ class NormalizedListing(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
     raw_listing: Mapped["RawListing"] = relationship(back_populates="normalized")
+    cluster: Mapped["ProductCluster | None"] = relationship(back_populates="normalized_listings")

@@ -5,7 +5,7 @@ from typing import Any
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
-from app.db.models import IngestionRun, NormalizedListing, RawListing
+from app.db.models import IngestionRun, NormalizedListing, ProductCluster, RawListing
 
 
 def create_ingestion_run(
@@ -165,6 +165,80 @@ def upsert_normalized_listing(
     return row
 
 
+def upsert_product_cluster(
+    db: Session,
+    *,
+    cluster_key: str,
+    cluster_title: str,
+    source_name: str,
+    query: str,
+    listing_count: int,
+    seller_count: int,
+    min_total_price: float | None,
+    max_total_price: float | None,
+    avg_total_price: float | None,
+    median_total_price: float | None,
+    high_ticket_count: int,
+    brand_risk_count: int,
+) -> ProductCluster:
+    existing = db.execute(
+        select(ProductCluster).where(ProductCluster.cluster_key == cluster_key)
+    ).scalar_one_or_none()
+
+    if existing:
+        existing.cluster_title = cluster_title
+        existing.source_name = source_name
+        existing.query = query
+        existing.listing_count = listing_count
+        existing.seller_count = seller_count
+        existing.min_total_price = min_total_price
+        existing.max_total_price = max_total_price
+        existing.avg_total_price = avg_total_price
+        existing.median_total_price = median_total_price
+        existing.high_ticket_count = high_ticket_count
+        existing.brand_risk_count = brand_risk_count
+        existing.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(existing)
+        return existing
+
+    row = ProductCluster(
+        cluster_key=cluster_key,
+        cluster_title=cluster_title,
+        source_name=source_name,
+        query=query,
+        listing_count=listing_count,
+        seller_count=seller_count,
+        min_total_price=min_total_price,
+        max_total_price=max_total_price,
+        avg_total_price=avg_total_price,
+        median_total_price=median_total_price,
+        high_ticket_count=high_ticket_count,
+        brand_risk_count=brand_risk_count,
+        updated_at=datetime.utcnow(),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def assign_listing_to_cluster(
+    db: Session,
+    *,
+    normalized_listing_id: int,
+    cluster_id: int,
+) -> NormalizedListing | None:
+    row = db.get(NormalizedListing, normalized_listing_id)
+    if not row:
+        return None
+
+    row.cluster_id = cluster_id
+    db.commit()
+    db.refresh(row)
+    return row
+
+
 def get_run_summary(db: Session) -> list[dict]:
     stmt = (
         select(
@@ -199,6 +273,35 @@ def get_raw_listings(db: Session) -> list[RawListing]:
     return list(db.execute(stmt).scalars().all())
 
 
+def get_normalized_listings(db: Session) -> list[NormalizedListing]:
+    stmt = select(NormalizedListing).order_by(NormalizedListing.id.asc())
+    return list(db.execute(stmt).scalars().all())
+
+
+def get_cluster_summary(db: Session) -> list[dict]:
+    stmt = select(ProductCluster).order_by(ProductCluster.listing_count.desc(), ProductCluster.id.asc())
+    rows = db.execute(stmt).scalars().all()
+
+    return [
+        {
+            "id": row.id,
+            "cluster_key": row.cluster_key,
+            "cluster_title": row.cluster_title,
+            "source_name": row.source_name,
+            "query": row.query,
+            "listing_count": row.listing_count,
+            "seller_count": row.seller_count,
+            "min_total_price": row.min_total_price,
+            "max_total_price": row.max_total_price,
+            "avg_total_price": row.avg_total_price,
+            "median_total_price": row.median_total_price,
+            "high_ticket_count": row.high_ticket_count,
+            "brand_risk_count": row.brand_risk_count,
+        }
+        for row in rows
+    ]
+
+
 def count_raw_listings(db: Session) -> int:
     stmt = select(func.count()).select_from(RawListing)
     return db.execute(stmt).scalar_one()
@@ -206,4 +309,9 @@ def count_raw_listings(db: Session) -> int:
 
 def count_normalized_listings(db: Session) -> int:
     stmt = select(func.count()).select_from(NormalizedListing)
+    return db.execute(stmt).scalar_one()
+
+
+def count_product_clusters(db: Session) -> int:
+    stmt = select(func.count()).select_from(ProductCluster)
     return db.execute(stmt).scalar_one()

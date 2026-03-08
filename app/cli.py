@@ -4,17 +4,23 @@ from pathlib import Path
 import typer
 from rich import print
 
+from app.cluster.cluster_products import build_clusters
 from app.config import settings
 from app.db.database import Base, SessionLocal, engine
 from app.db.repo import (
+    assign_listing_to_cluster,
     count_normalized_listings,
+    count_product_clusters,
     count_raw_listings,
     create_ingestion_run,
     finish_ingestion_run,
+    get_cluster_summary,
+    get_normalized_listings,
     get_raw_listings,
     get_run_summary,
     insert_raw_listing,
     upsert_normalized_listing,
+    upsert_product_cluster,
 )
 from app.normalize.processor import normalize_raw_listing
 from app.sources.ebay import (
@@ -209,6 +215,46 @@ def normalize_listings():
         )
 
 
+@app.command("cluster-products")
+def cluster_products():
+    """Cluster normalized listings into product clusters."""
+    with SessionLocal() as db:
+        normalized_rows = get_normalized_listings(db)
+        clusters = build_clusters(normalized_rows)
+
+        for cluster in clusters:
+            cluster_row = upsert_product_cluster(
+                db,
+                cluster_key=cluster["cluster_key"],
+                cluster_title=cluster["cluster_title"],
+                source_name=cluster["source_name"],
+                query=cluster["query"],
+                listing_count=cluster["listing_count"],
+                seller_count=cluster["seller_count"],
+                min_total_price=cluster["min_total_price"],
+                max_total_price=cluster["max_total_price"],
+                avg_total_price=cluster["avg_total_price"],
+                median_total_price=cluster["median_total_price"],
+                high_ticket_count=cluster["high_ticket_count"],
+                brand_risk_count=cluster["brand_risk_count"],
+            )
+
+            for normalized_listing_id in cluster["normalized_listing_ids"]:
+                assign_listing_to_cluster(
+                    db,
+                    normalized_listing_id=normalized_listing_id,
+                    cluster_id=cluster_row.id,
+                )
+
+        print_json(
+            {
+                "status": "completed",
+                "normalized_seen": len(normalized_rows),
+                "clusters_written": len(clusters),
+            }
+        )
+
+
 @app.command()
 def runs():
     """Show ingestion runs."""
@@ -224,8 +270,16 @@ def stats():
             {
                 "raw_listings": count_raw_listings(db),
                 "normalized_listings": count_normalized_listings(db),
+                "product_clusters": count_product_clusters(db),
             }
         )
+
+
+@app.command("clusters")
+def clusters_cmd():
+    """Show product cluster summary."""
+    with SessionLocal() as db:
+        print_json({"clusters": get_cluster_summary(db)})
 
 
 def print_json(data: dict) -> None:

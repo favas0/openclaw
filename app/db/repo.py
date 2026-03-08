@@ -5,7 +5,13 @@ from typing import Any
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
-from app.db.models import IngestionRun, NormalizedListing, ProductCluster, RawListing
+from app.db.models import (
+    ClusterScore,
+    IngestionRun,
+    NormalizedListing,
+    ProductCluster,
+    RawListing,
+)
 
 
 def create_ingestion_run(
@@ -239,6 +245,73 @@ def assign_listing_to_cluster(
     return row
 
 
+def upsert_cluster_score(
+    db: Session,
+    *,
+    cluster_id: int,
+    demand_score: float,
+    sales_signal_score: float,
+    competition_score: float,
+    supplier_fit_score: float,
+    risk_score: float,
+    sell_price_estimate: float | None,
+    supplier_cost_estimate: float | None,
+    shipping_cost_estimate: float | None,
+    fees_estimate: float | None,
+    gross_profit_estimate: float | None,
+    max_cpa: float | None,
+    total_score: float,
+    recommendation: str,
+    notes: str | None,
+) -> ClusterScore:
+    existing = db.execute(
+        select(ClusterScore).where(ClusterScore.cluster_id == cluster_id)
+    ).scalar_one_or_none()
+
+    if existing:
+        existing.demand_score = demand_score
+        existing.sales_signal_score = sales_signal_score
+        existing.competition_score = competition_score
+        existing.supplier_fit_score = supplier_fit_score
+        existing.risk_score = risk_score
+        existing.sell_price_estimate = sell_price_estimate
+        existing.supplier_cost_estimate = supplier_cost_estimate
+        existing.shipping_cost_estimate = shipping_cost_estimate
+        existing.fees_estimate = fees_estimate
+        existing.gross_profit_estimate = gross_profit_estimate
+        existing.max_cpa = max_cpa
+        existing.total_score = total_score
+        existing.recommendation = recommendation
+        existing.notes = notes
+        existing.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(existing)
+        return existing
+
+    row = ClusterScore(
+        cluster_id=cluster_id,
+        demand_score=demand_score,
+        sales_signal_score=sales_signal_score,
+        competition_score=competition_score,
+        supplier_fit_score=supplier_fit_score,
+        risk_score=risk_score,
+        sell_price_estimate=sell_price_estimate,
+        supplier_cost_estimate=supplier_cost_estimate,
+        shipping_cost_estimate=shipping_cost_estimate,
+        fees_estimate=fees_estimate,
+        gross_profit_estimate=gross_profit_estimate,
+        max_cpa=max_cpa,
+        total_score=total_score,
+        recommendation=recommendation,
+        notes=notes,
+        updated_at=datetime.utcnow(),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
 def get_run_summary(db: Session) -> list[dict]:
     stmt = (
         select(
@@ -278,6 +351,11 @@ def get_normalized_listings(db: Session) -> list[NormalizedListing]:
     return list(db.execute(stmt).scalars().all())
 
 
+def get_product_clusters(db: Session) -> list[ProductCluster]:
+    stmt = select(ProductCluster).order_by(ProductCluster.listing_count.desc(), ProductCluster.id.asc())
+    return list(db.execute(stmt).scalars().all())
+
+
 def get_cluster_summary(db: Session) -> list[dict]:
     stmt = select(ProductCluster).order_by(ProductCluster.listing_count.desc(), ProductCluster.id.asc())
     rows = db.execute(stmt).scalars().all()
@@ -302,6 +380,39 @@ def get_cluster_summary(db: Session) -> list[dict]:
     ]
 
 
+def get_score_summary(db: Session) -> list[dict]:
+    stmt = (
+        select(ProductCluster, ClusterScore)
+        .join(ClusterScore, ClusterScore.cluster_id == ProductCluster.id)
+        .order_by(ClusterScore.total_score.desc(), ProductCluster.id.asc())
+    )
+
+    rows = db.execute(stmt).all()
+
+    results = []
+    for cluster, score in rows:
+        results.append(
+            {
+                "cluster_id": cluster.id,
+                "cluster_title": cluster.cluster_title,
+                "listing_count": cluster.listing_count,
+                "seller_count": cluster.seller_count,
+                "median_total_price": cluster.median_total_price,
+                "demand_score": score.demand_score,
+                "sales_signal_score": score.sales_signal_score,
+                "competition_score": score.competition_score,
+                "supplier_fit_score": score.supplier_fit_score,
+                "risk_score": score.risk_score,
+                "gross_profit_estimate": score.gross_profit_estimate,
+                "max_cpa": score.max_cpa,
+                "total_score": score.total_score,
+                "recommendation": score.recommendation,
+                "notes": score.notes,
+            }
+        )
+    return results
+
+
 def count_raw_listings(db: Session) -> int:
     stmt = select(func.count()).select_from(RawListing)
     return db.execute(stmt).scalar_one()
@@ -314,4 +425,9 @@ def count_normalized_listings(db: Session) -> int:
 
 def count_product_clusters(db: Session) -> int:
     stmt = select(func.count()).select_from(ProductCluster)
+    return db.execute(stmt).scalar_one()
+
+
+def count_cluster_scores(db: Session) -> int:
+    stmt = select(func.count()).select_from(ClusterScore)
     return db.execute(stmt).scalar_one()

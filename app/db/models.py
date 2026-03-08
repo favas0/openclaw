@@ -96,6 +96,11 @@ class ProductCluster(Base):
     normalized_listings: Mapped[list["NormalizedListing"]] = relationship(
         back_populates="cluster"
     )
+    score: Mapped["ClusterScore | None"] = relationship(
+        back_populates="cluster",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
 
 
 class NormalizedListing(Base):
@@ -132,3 +137,35 @@ class NormalizedListing(Base):
 
     raw_listing: Mapped["RawListing"] = relationship(back_populates="normalized")
     cluster: Mapped["ProductCluster | None"] = relationship(back_populates="normalized_listings")
+
+
+class ClusterScore(Base):
+    __tablename__ = "cluster_scores"
+    __table_args__ = (
+        UniqueConstraint("cluster_id", name="uq_cluster_scores_cluster_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    cluster_id: Mapped[int] = mapped_column(ForeignKey("product_clusters.id"), index=True)
+
+    demand_score: Mapped[float] = mapped_column(Float, default=0.0)
+    sales_signal_score: Mapped[float] = mapped_column(Float, default=0.0)
+    competition_score: Mapped[float] = mapped_column(Float, default=0.0)
+    supplier_fit_score: Mapped[float] = mapped_column(Float, default=0.0)
+    risk_score: Mapped[float] = mapped_column(Float, default=0.0)
+
+    sell_price_estimate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    supplier_cost_estimate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    shipping_cost_estimate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    fees_estimate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    gross_profit_estimate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    max_cpa: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    total_score: Mapped[float] = mapped_column(Float, default=0.0)
+    recommendation: Mapped[str] = mapped_column(String(30), default="watch")
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+    cluster: Mapped["ProductCluster"] = relationship(back_populates="score")

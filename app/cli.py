@@ -9,6 +9,7 @@ from app.config import settings
 from app.db.database import Base, SessionLocal, engine
 from app.db.repo import (
     assign_listing_to_cluster,
+    count_cluster_scores,
     count_normalized_listings,
     count_product_clusters,
     count_raw_listings,
@@ -16,13 +17,17 @@ from app.db.repo import (
     finish_ingestion_run,
     get_cluster_summary,
     get_normalized_listings,
+    get_product_clusters,
     get_raw_listings,
     get_run_summary,
+    get_score_summary,
     insert_raw_listing,
+    upsert_cluster_score,
     upsert_normalized_listing,
     upsert_product_cluster,
 )
 from app.normalize.processor import normalize_raw_listing
+from app.scoring.cluster_scoring import score_cluster
 from app.sources.ebay import (
     EbayClient,
     extract_item_summaries,
@@ -255,6 +260,41 @@ def cluster_products():
         )
 
 
+@app.command("score-products")
+def score_products():
+    """Score product clusters and write cluster_scores."""
+    with SessionLocal() as db:
+        clusters = get_product_clusters(db)
+
+        for cluster in clusters:
+            result = score_cluster(cluster)
+            upsert_cluster_score(
+                db,
+                cluster_id=cluster.id,
+                demand_score=result["demand_score"],
+                sales_signal_score=result["sales_signal_score"],
+                competition_score=result["competition_score"],
+                supplier_fit_score=result["supplier_fit_score"],
+                risk_score=result["risk_score"],
+                sell_price_estimate=result["sell_price_estimate"],
+                supplier_cost_estimate=result["supplier_cost_estimate"],
+                shipping_cost_estimate=result["shipping_cost_estimate"],
+                fees_estimate=result["fees_estimate"],
+                gross_profit_estimate=result["gross_profit_estimate"],
+                max_cpa=result["max_cpa"],
+                total_score=result["total_score"],
+                recommendation=result["recommendation"],
+                notes=result["notes"],
+            )
+
+        print_json(
+            {
+                "status": "completed",
+                "clusters_scored": len(clusters),
+            }
+        )
+
+
 @app.command()
 def runs():
     """Show ingestion runs."""
@@ -271,6 +311,7 @@ def stats():
                 "raw_listings": count_raw_listings(db),
                 "normalized_listings": count_normalized_listings(db),
                 "product_clusters": count_product_clusters(db),
+                "cluster_scores": count_cluster_scores(db),
             }
         )
 
@@ -280,6 +321,13 @@ def clusters_cmd():
     """Show product cluster summary."""
     with SessionLocal() as db:
         print_json({"clusters": get_cluster_summary(db)})
+
+
+@app.command("scores")
+def scores_cmd():
+    """Show scored product summary."""
+    with SessionLocal() as db:
+        print_json({"scores": get_score_summary(db)})
 
 
 def print_json(data: dict) -> None:

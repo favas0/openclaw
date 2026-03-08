@@ -48,6 +48,43 @@ def print_json(data: dict) -> None:
     print(json.dumps(data, indent=2, default=str))
 
 
+def shortlist_rows(
+    *,
+    rows: list[dict],
+    min_profit: float,
+    min_cpa: float,
+    min_listings: int,
+    limit: int,
+) -> list[dict]:
+    filtered: list[dict] = []
+
+    for row in rows:
+        gross_profit = row.get("gross_profit_estimate")
+        max_cpa = row.get("max_cpa")
+        listing_count = row.get("listing_count") or 0
+
+        if gross_profit is None or gross_profit < min_profit:
+            continue
+        if max_cpa is None or max_cpa < min_cpa:
+            continue
+        if listing_count < min_listings:
+            continue
+
+        filtered.append(row)
+
+    filtered = sorted(
+        filtered,
+        key=lambda row: (
+            -(row.get("total_score") or 0.0),
+            -(row.get("gross_profit_estimate") or 0.0),
+            -(row.get("listing_count") or 0),
+            row.get("cluster_id") or 0,
+        ),
+    )[:limit]
+
+    return filtered
+
+
 @app.command()
 def doctor():
     data_dir = Path(settings.openclaw_data_dir)
@@ -421,30 +458,13 @@ def shortlist_products(
             limit=None,
         )
 
-    filtered: list[dict] = []
-    for row in rows:
-        gross_profit = row.get("gross_profit_estimate")
-        max_cpa = row.get("max_cpa")
-        listing_count = row.get("listing_count") or 0
-
-        if gross_profit is None or gross_profit < min_profit:
-            continue
-        if max_cpa is None or max_cpa < min_cpa:
-            continue
-        if listing_count < min_listings:
-            continue
-
-        filtered.append(row)
-
-    filtered = sorted(
-        filtered,
-        key=lambda row: (
-            -(row.get("total_score") or 0.0),
-            -(row.get("gross_profit_estimate") or 0.0),
-            -(row.get("listing_count") or 0),
-            row.get("cluster_id") or 0,
-        ),
-    )[:limit]
+    filtered = shortlist_rows(
+        rows=rows,
+        min_profit=min_profit,
+        min_cpa=min_cpa,
+        min_listings=min_listings,
+        limit=limit,
+    )
 
     print_json(
         {
@@ -457,6 +477,102 @@ def shortlist_products(
                 "limit": limit,
             },
             "products": filtered,
+        }
+    )
+
+
+@app.command("export-shortlist")
+def export_shortlist(
+    recommendation: str | None = typer.Option(
+        None,
+        "--recommendation",
+        "-r",
+        help="Optional filter, e.g. watch / test",
+    ),
+    limit: int = typer.Option(
+        10,
+        "--limit",
+        "-l",
+        min=1,
+        max=100,
+        help="Maximum shortlisted products to export",
+    ),
+    min_profit: float = typer.Option(
+        60.0,
+        "--min-profit",
+        help="Minimum gross profit estimate",
+    ),
+    min_cpa: float = typer.Option(
+        30.0,
+        "--min-cpa",
+        help="Minimum max CPA",
+    ),
+    min_listings: int = typer.Option(
+        2,
+        "--min-listings",
+        help="Minimum listing count",
+    ),
+    fmt: str = typer.Option(
+        "csv",
+        "--format",
+        "-f",
+        help="csv | md | both",
+    ),
+):
+    fmt = fmt.strip().lower()
+    if fmt not in {"csv", "md", "both"}:
+        raise typer.BadParameter("format must be one of: csv, md, both")
+
+    with SessionLocal() as db:
+        rows = get_score_summary(
+            db,
+            recommendation=recommendation,
+            limit=None,
+        )
+
+    filtered = shortlist_rows(
+        rows=rows,
+        min_profit=min_profit,
+        min_cpa=min_cpa,
+        min_listings=min_listings,
+        limit=limit,
+    )
+
+    reports_dir = Path(settings.openclaw_data_dir) / "reports"
+
+    rec_suffix = recommendation.strip().lower() if recommendation else "all"
+    file_stem = (
+        f"shortlist_{rec_suffix}"
+        f"_profit{int(min_profit)}"
+        f"_cpa{int(min_cpa)}"
+        f"_listings{min_listings}"
+        f"_top{limit}"
+    )
+
+    written: list[str] = []
+
+    if fmt in {"csv", "both"}:
+        csv_path = reports_dir / f"{file_stem}.csv"
+        write_ranked_csv(csv_path, filtered)
+        written.append(str(csv_path))
+
+    if fmt in {"md", "both"}:
+        md_path = reports_dir / f"{file_stem}.md"
+        write_ranked_markdown(md_path, filtered)
+        written.append(str(md_path))
+
+    print_json(
+        {
+            "status": "completed",
+            "exported_count": len(filtered),
+            "filters": {
+                "recommendation": recommendation,
+                "min_profit": min_profit,
+                "min_cpa": min_cpa,
+                "min_listings": min_listings,
+                "limit": limit,
+            },
+            "files": written,
         }
     )
 

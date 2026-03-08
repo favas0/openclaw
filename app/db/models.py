@@ -8,6 +8,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -61,3 +62,42 @@ class RawListing(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
     run: Mapped["IngestionRun"] = relationship(back_populates="listings")
+    normalized: Mapped["NormalizedListing | None"] = relationship(
+        back_populates="raw_listing",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+
+
+class NormalizedListing(Base):
+    __tablename__ = "normalized_listings"
+    __table_args__ = (
+        UniqueConstraint("raw_listing_id", name="uq_normalized_raw_listing_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    raw_listing_id: Mapped[int] = mapped_column(ForeignKey("raw_listings.id"), index=True)
+
+    source_name: Mapped[str] = mapped_column(String(50), index=True)
+    query: Mapped[str] = mapped_column(String(255), index=True)
+
+    original_title: Mapped[str] = mapped_column(Text)
+    normalized_title: Mapped[str] = mapped_column(Text, index=True)
+    canonical_tokens: Mapped[str] = mapped_column(Text, index=True)
+
+    price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    shipping_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
+    total_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(10), nullable=True)
+
+    seller_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    category: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    condition: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    token_count: Mapped[int] = mapped_column(Integer, default=0)
+    has_brand_risk: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    is_high_ticket_candidate: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+    raw_listing: Mapped["RawListing"] = relationship(back_populates="normalized")

@@ -7,12 +7,16 @@ from rich import print
 from app.config import settings
 from app.db.database import Base, SessionLocal, engine
 from app.db.repo import (
+    count_normalized_listings,
     count_raw_listings,
     create_ingestion_run,
     finish_ingestion_run,
+    get_raw_listings,
     get_run_summary,
     insert_raw_listing,
+    upsert_normalized_listing,
 )
+from app.normalize.processor import normalize_raw_listing
 from app.sources.ebay import (
     EbayClient,
     extract_item_summaries,
@@ -184,6 +188,27 @@ def collect_ebay(
             raise typer.Exit(code=1) from exc
 
 
+@app.command("normalize-listings")
+def normalize_listings():
+    """Normalize raw listings into normalized_listings."""
+    with SessionLocal() as db:
+        raw_listings = get_raw_listings(db)
+
+        processed = 0
+        for raw in raw_listings:
+            norm = normalize_raw_listing(raw)
+            upsert_normalized_listing(db, **norm)
+            processed += 1
+
+        print_json(
+            {
+                "status": "completed",
+                "raw_seen": len(raw_listings),
+                "normalized_written": processed,
+            }
+        )
+
+
 @app.command()
 def runs():
     """Show ingestion runs."""
@@ -198,6 +223,7 @@ def stats():
         print_json(
             {
                 "raw_listings": count_raw_listings(db),
+                "normalized_listings": count_normalized_listings(db),
             }
         )
 

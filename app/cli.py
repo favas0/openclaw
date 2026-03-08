@@ -17,17 +17,15 @@ from app.db.repo import (
     finish_ingestion_run,
     get_cluster_summary,
     get_normalized_listings,
-    get_product_clusters,
     get_raw_listings,
     get_run_summary,
     get_score_summary,
     insert_raw_listing,
-    upsert_cluster_score,
     upsert_normalized_listing,
     upsert_product_cluster,
 )
 from app.normalize.processor import normalize_raw_listing
-from app.scoring.cluster_scoring import score_cluster
+from app.reporting.rankings import write_ranked_csv, write_ranked_markdown
 from app.sources.ebay import (
     EbayClient,
     extract_item_summaries,
@@ -43,9 +41,12 @@ app = typer.Typer(
 )
 
 
+def print_json(data: dict) -> None:
+    print(json.dumps(data, indent=2, default=str))
+
+
 @app.command()
 def doctor():
-    """Check config, mounts, and basic runtime state."""
     data_dir = Path(settings.openclaw_data_dir)
     db_path = Path(settings.openclaw_db_path)
     ebay = EbayClient()
@@ -66,13 +67,11 @@ def doctor():
         "has_ebay_client_secret": bool(settings.ebay_client_secret),
         "ebay_credentials_ready": ebay.has_credentials(),
     }
-
     print_json(result)
 
 
 @app.command()
 def initdb():
-    """Create database tables."""
     db_path = Path(settings.openclaw_db_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
     Base.metadata.create_all(bind=engine)
@@ -81,7 +80,6 @@ def initdb():
 
 @app.command("seed-demo")
 def seed_demo(query: str = "walking pad"):
-    """Insert one demo ingestion run and one demo raw listing."""
     with SessionLocal() as db:
         run = create_ingestion_run(
             db,
@@ -90,34 +88,65 @@ def seed_demo(query: str = "walking pad"):
             status="started",
         )
 
-        insert_raw_listing(
-            db,
-            run_id=run.id,
-            source_name="ebay",
-            query=query,
-            external_id="demo-001",
-            title="Under Desk Walking Pad Treadmill 2.5HP Remote Control LED Display",
-            price=189.99,
-            shipping_cost=0.0,
-            currency="GBP",
-            seller_name="demo_seller_uk",
-            item_url="https://example.com/item/demo-001",
-            image_url="https://example.com/item/demo-001.jpg",
-            category="Fitness Equipment",
-            condition="New",
-            is_sold_signal=False,
-            raw_payload={"demo": True},
-        )
+        demo_rows = [
+            {
+                "external_id": "demo-001",
+                "title": "Under Desk Walking Pad Treadmill 2.5HP Remote Control LED Display",
+                "price": 179.99,
+                "shipping_cost": 0.0,
+                "seller_name": "demo_seller_uk_1",
+            },
+            {
+                "external_id": "demo-002",
+                "title": "Walking Pad Treadmill Under Desk 2.5HP LED Display Remote Control",
+                "price": 189.99,
+                "shipping_cost": 0.0,
+                "seller_name": "demo_seller_uk_2",
+            },
+            {
+                "external_id": "demo-003",
+                "title": "Compact Under Desk Walking Pad Treadmill Home Office Remote",
+                "price": 199.99,
+                "shipping_cost": 0.0,
+                "seller_name": "demo_seller_uk_3",
+            },
+            {
+                "external_id": "demo-004",
+                "title": "2.5HP Walking Pad for Home Office Under Desk Treadmill",
+                "price": 209.99,
+                "shipping_cost": 0.0,
+                "seller_name": "demo_seller_uk_2",
+            },
+        ]
+
+        for item in demo_rows:
+            insert_raw_listing(
+                db,
+                run_id=run.id,
+                source_name="ebay",
+                query=query,
+                external_id=item["external_id"],
+                title=item["title"],
+                price=item["price"],
+                shipping_cost=item["shipping_cost"],
+                currency="GBP",
+                seller_name=item["seller_name"],
+                item_url=f"https://example.com/item/{item['external_id']}",
+                image_url=f"https://example.com/item/{item['external_id']}.jpg",
+                category="Fitness Equipment",
+                condition="New",
+                is_sold_signal=False,
+                raw_payload={"demo": True},
+            )
 
         finish_ingestion_run(
             db,
             run_id=run.id,
             status="completed",
-            listings_found=1,
+            listings_found=len(demo_rows),
             notes="Demo seed inserted",
         )
-
-    print("[green]Inserted demo run and listing.[/green]")
+        print("[green]Inserted demo run and listings.[/green]")
 
 
 @app.command("collect-ebay")
@@ -126,7 +155,6 @@ def collect_ebay(
     limit: int = typer.Option(20, "--limit", "-l", min=1, max=100),
     use_demo: bool = typer.Option(False, "--demo", help="Use built-in demo data"),
 ):
-    """Collect eBay listings into raw_listings."""
     client = EbayClient()
 
     with SessionLocal() as db:
@@ -147,7 +175,6 @@ def collect_ebay(
                 notes = "Live eBay Browse API used"
 
             inserted = 0
-
             for item in items:
                 mapped = map_item_summary_to_raw_listing(item, query)
                 insert_raw_listing(
@@ -187,7 +214,6 @@ def collect_ebay(
                     "notes": notes,
                 }
             )
-
         except Exception as exc:
             finish_ingestion_run(
                 db,
@@ -201,11 +227,10 @@ def collect_ebay(
 
 @app.command("normalize-listings")
 def normalize_listings():
-    """Normalize raw listings into normalized_listings."""
     with SessionLocal() as db:
         raw_listings = get_raw_listings(db)
-
         processed = 0
+
         for raw in raw_listings:
             norm = normalize_raw_listing(raw)
             upsert_normalized_listing(db, **norm)
@@ -222,7 +247,6 @@ def normalize_listings():
 
 @app.command("cluster-products")
 def cluster_products():
-    """Cluster normalized listings into product clusters."""
     with SessionLocal() as db:
         normalized_rows = get_normalized_listings(db)
         clusters = build_clusters(normalized_rows)
@@ -260,51 +284,14 @@ def cluster_products():
         )
 
 
-@app.command("score-products")
-def score_products():
-    """Score product clusters and write cluster_scores."""
-    with SessionLocal() as db:
-        clusters = get_product_clusters(db)
-
-        for cluster in clusters:
-            result = score_cluster(cluster)
-            upsert_cluster_score(
-                db,
-                cluster_id=cluster.id,
-                demand_score=result["demand_score"],
-                sales_signal_score=result["sales_signal_score"],
-                competition_score=result["competition_score"],
-                supplier_fit_score=result["supplier_fit_score"],
-                risk_score=result["risk_score"],
-                sell_price_estimate=result["sell_price_estimate"],
-                supplier_cost_estimate=result["supplier_cost_estimate"],
-                shipping_cost_estimate=result["shipping_cost_estimate"],
-                fees_estimate=result["fees_estimate"],
-                gross_profit_estimate=result["gross_profit_estimate"],
-                max_cpa=result["max_cpa"],
-                total_score=result["total_score"],
-                recommendation=result["recommendation"],
-                notes=result["notes"],
-            )
-
-        print_json(
-            {
-                "status": "completed",
-                "clusters_scored": len(clusters),
-            }
-        )
-
-
 @app.command()
 def runs():
-    """Show ingestion runs."""
     with SessionLocal() as db:
         print_json({"runs": get_run_summary(db)})
 
 
 @app.command()
 def stats():
-    """Show basic database stats."""
     with SessionLocal() as db:
         print_json(
             {
@@ -318,20 +305,100 @@ def stats():
 
 @app.command("clusters")
 def clusters_cmd():
-    """Show product cluster summary."""
     with SessionLocal() as db:
         print_json({"clusters": get_cluster_summary(db)})
 
 
-@app.command("scores")
-def scores_cmd():
-    """Show scored product summary."""
+@app.command("top-products")
+def top_products(
+    recommendation: str | None = typer.Option(
+        None,
+        "--recommendation",
+        "-r",
+        help="Optional filter, e.g. watch / shortlist / test",
+    ),
+    limit: int = typer.Option(
+        20,
+        "--limit",
+        "-l",
+        min=1,
+        max=200,
+        help="Maximum ranked products to show",
+    ),
+):
     with SessionLocal() as db:
-        print_json({"scores": get_score_summary(db)})
+        rows = get_score_summary(
+            db,
+            recommendation=recommendation,
+            limit=limit,
+        )
+
+        print_json(
+            {
+                "count": len(rows),
+                "recommendation_filter": recommendation,
+                "products": rows,
+            }
+        )
 
 
-def print_json(data: dict) -> None:
-    print(json.dumps(data, indent=2, default=str))
+@app.command("export-products")
+def export_products(
+    recommendation: str | None = typer.Option(
+        None,
+        "--recommendation",
+        "-r",
+        help="Optional filter, e.g. watch / shortlist / test",
+    ),
+    limit: int | None = typer.Option(
+        None,
+        "--limit",
+        "-l",
+        min=1,
+        max=1000,
+        help="Optional maximum rows to export",
+    ),
+    fmt: str = typer.Option(
+        "csv",
+        "--format",
+        "-f",
+        help="csv | md | both",
+    ),
+):
+    fmt = fmt.strip().lower()
+    if fmt not in {"csv", "md", "both"}:
+        raise typer.BadParameter("format must be one of: csv, md, both")
+
+    with SessionLocal() as db:
+        rows = get_score_summary(
+            db,
+            recommendation=recommendation,
+            limit=limit,
+        )
+
+    reports_dir = Path(settings.openclaw_data_dir) / "reports"
+    suffix = recommendation.strip().lower() if recommendation else "all"
+
+    written: list[str] = []
+
+    if fmt in {"csv", "both"}:
+        csv_path = reports_dir / f"ranked_products_{suffix}.csv"
+        write_ranked_csv(csv_path, rows)
+        written.append(str(csv_path))
+
+    if fmt in {"md", "both"}:
+        md_path = reports_dir / f"ranked_products_{suffix}.md"
+        write_ranked_markdown(md_path, rows)
+        written.append(str(md_path))
+
+    print_json(
+        {
+            "status": "completed",
+            "exported_count": len(rows),
+            "recommendation_filter": recommendation,
+            "files": written,
+        }
+    )
 
 
 if __name__ == "__main__":

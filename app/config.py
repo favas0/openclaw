@@ -14,7 +14,9 @@ class Settings(BaseSettings):
     ebay_app_id: str = ""
     ebay_dev_id: str = ""
     ebay_cert_id: str = ""
+    ebay_client_secret: str = ""
     ebay_env: str = "production"
+    ebay_marketplace_id: str = "EBAY_GB"
 
     model_config = SettingsConfigDict(
         env_file=".env",

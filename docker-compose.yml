@@ -1,0 +1,13 @@
+services:
+  openclaw:
+    build: .
+    container_name: openclaw
+    env_file:
+      - /home/favas/.config/openclaw/.env
+    volumes:
+      - /home/favas/data/openclaw:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    working_dir: /app
+    command: ["python", "-m", "app.cli", "--help"]
+    restart: "no"

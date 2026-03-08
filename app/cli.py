@@ -382,6 +382,85 @@ def top_products(
         )
 
 
+@app.command("shortlist-products")
+def shortlist_products(
+    recommendation: str | None = typer.Option(
+        None,
+        "--recommendation",
+        "-r",
+        help="Optional filter, e.g. watch / test",
+    ),
+    limit: int = typer.Option(
+        10,
+        "--limit",
+        "-l",
+        min=1,
+        max=100,
+        help="Maximum shortlisted products to show",
+    ),
+    min_profit: float = typer.Option(
+        60.0,
+        "--min-profit",
+        help="Minimum gross profit estimate",
+    ),
+    min_cpa: float = typer.Option(
+        30.0,
+        "--min-cpa",
+        help="Minimum max CPA",
+    ),
+    min_listings: int = typer.Option(
+        2,
+        "--min-listings",
+        help="Minimum listing count",
+    ),
+):
+    with SessionLocal() as db:
+        rows = get_score_summary(
+            db,
+            recommendation=recommendation,
+            limit=None,
+        )
+
+    filtered: list[dict] = []
+    for row in rows:
+        gross_profit = row.get("gross_profit_estimate")
+        max_cpa = row.get("max_cpa")
+        listing_count = row.get("listing_count") or 0
+
+        if gross_profit is None or gross_profit < min_profit:
+            continue
+        if max_cpa is None or max_cpa < min_cpa:
+            continue
+        if listing_count < min_listings:
+            continue
+
+        filtered.append(row)
+
+    filtered = sorted(
+        filtered,
+        key=lambda row: (
+            -(row.get("total_score") or 0.0),
+            -(row.get("gross_profit_estimate") or 0.0),
+            -(row.get("listing_count") or 0),
+            row.get("cluster_id") or 0,
+        ),
+    )[:limit]
+
+    print_json(
+        {
+            "count": len(filtered),
+            "filters": {
+                "recommendation": recommendation,
+                "min_profit": min_profit,
+                "min_cpa": min_cpa,
+                "min_listings": min_listings,
+                "limit": limit,
+            },
+            "products": filtered,
+        }
+    )
+
+
 @app.command("export-products")
 def export_products(
     recommendation: str | None = typer.Option(

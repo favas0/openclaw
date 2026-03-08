@@ -22,6 +22,12 @@ RANKING_FIELDS = [
     "fees_estimate",
     "gross_profit_estimate",
     "max_cpa",
+    "visual_hook_score",
+    "fragility_risk",
+    "assembly_complexity",
+    "confidence_score",
+    "enrichment_adjustment",
+    "base_total_score",
     "total_score",
     "recommendation",
     "notes",
@@ -73,6 +79,12 @@ def write_ranked_markdown(path: Path, rows: list[dict]) -> Path:
         lines.append(f"- Competition score: `{row.get('competition_score', '')}`")
         lines.append(f"- Supplier fit score: `{row.get('supplier_fit_score', '')}`")
         lines.append(f"- Risk score: `{row.get('risk_score', '')}`")
+        lines.append(f"- Visual hook score: `{row.get('visual_hook_score', '')}`")
+        lines.append(f"- Fragility risk: `{row.get('fragility_risk', '')}`")
+        lines.append(f"- Assembly complexity: `{row.get('assembly_complexity', '')}`")
+        lines.append(f"- Confidence score: `{row.get('confidence_score', '')}`")
+        lines.append(f"- Enrichment adjustment: `{row.get('enrichment_adjustment', '')}`")
+        lines.append(f"- Base total score: `{row.get('base_total_score', '')}`")
         lines.append(f"- Sell price estimate: `{row.get('sell_price_estimate', '')}`")
         lines.append(f"- Supplier cost estimate: `{row.get('supplier_cost_estimate', '')}`")
         lines.append(f"- Shipping cost estimate: `{row.get('shipping_cost_estimate', '')}`")

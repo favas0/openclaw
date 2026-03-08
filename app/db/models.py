@@ -161,6 +161,13 @@ class ClusterScore(Base):
     gross_profit_estimate: Mapped[float | None] = mapped_column(Float, nullable=True)
     max_cpa: Mapped[float | None] = mapped_column(Float, nullable=True)
 
+    visual_hook_score: Mapped[int] = mapped_column(Integer, default=0)
+    fragility_risk: Mapped[int] = mapped_column(Integer, default=0)
+    assembly_complexity: Mapped[int] = mapped_column(Integer, default=0)
+    confidence_score: Mapped[int] = mapped_column(Integer, default=0)
+    enrichment_adjustment: Mapped[float] = mapped_column(Float, default=0.0)
+    base_total_score: Mapped[float] = mapped_column(Float, default=0.0)
+
     total_score: Mapped[float] = mapped_column(Float, default=0.0)
     recommendation: Mapped[str] = mapped_column(String(30), default="watch")
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

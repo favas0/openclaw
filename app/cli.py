@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import typer
 from sqlalchemy import text
@@ -421,10 +422,44 @@ def cluster_products():
 def score_products():
     with SessionLocal() as db:
         clusters = get_product_clusters(db)
+
+        enrichment_rows = db.execute(
+            text(
+                """
+                SELECT
+                    cluster_id,
+                    visual_hook_score,
+                    fragility_risk,
+                    assembly_complexity,
+                    confidence_score
+                FROM cluster_enrichments
+                """
+            )
+        ).fetchall()
+
+        enrichment_map = {row.cluster_id: row for row in enrichment_rows}
+
         written = 0
 
         for cluster in clusters:
-            score = score_cluster(cluster)
+            enrichment = enrichment_map.get(cluster.id)
+
+            cluster_payload = {
+                "id": getattr(cluster, "id", None),
+                "cluster_title": getattr(cluster, "cluster_title", ""),
+                "listing_count": getattr(cluster, "listing_count", 0),
+                "seller_count": getattr(cluster, "seller_count", 0),
+                "min_total_price": getattr(cluster, "min_total_price", None),
+                "max_total_price": getattr(cluster, "max_total_price", None),
+                "median_total_price": getattr(cluster, "median_total_price", None),
+                "brand_risk_count": getattr(cluster, "brand_risk_count", 0),
+                "visual_hook_score": getattr(enrichment, "visual_hook_score", 0) if enrichment else 0,
+                "fragility_risk": getattr(enrichment, "fragility_risk", 0) if enrichment else 0,
+                "assembly_complexity": getattr(enrichment, "assembly_complexity", 0) if enrichment else 0,
+                "confidence_score": getattr(enrichment, "confidence_score", 0) if enrichment else 0,
+            }
+
+            score = score_cluster(SimpleNamespace(**cluster_payload))
             upsert_cluster_score(
                 db,
                 cluster_id=cluster.id,
@@ -439,6 +474,12 @@ def score_products():
                 fees_estimate=score["fees_estimate"],
                 gross_profit_estimate=score["gross_profit_estimate"],
                 max_cpa=score["max_cpa"],
+                visual_hook_score=score.get("visual_hook_score", 0),
+                fragility_risk=score.get("fragility_risk", 0),
+                assembly_complexity=score.get("assembly_complexity", 0),
+                confidence_score=score.get("confidence_score", 0),
+                enrichment_adjustment=score.get("enrichment_adjustment", 0.0),
+                base_total_score=score.get("base_total_score", score["total_score"]),
                 total_score=score["total_score"],
                 recommendation=score["recommendation"],
                 notes=score["notes"],

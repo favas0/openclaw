@@ -18,13 +18,18 @@ from app.db.repo import (
     count_raw_listings,
     create_ingestion_run,
     finish_ingestion_run,
+    get_cluster_comparison_rows,
     get_cluster_summary,
+    get_cluster_trends,
     get_normalized_listings,
     get_product_clusters,
     get_raw_listings,
+    get_research_signal_summary,
     get_run_summary,
     get_score_summary,
     insert_raw_listing,
+    insert_score_snapshot,
+    upsert_cluster_research_signal,
     upsert_cluster_score,
     upsert_normalized_listing,
     upsert_product_cluster,
@@ -32,6 +37,7 @@ from app.db.repo import (
 from app.normalize.processor import normalize_raw_listing
 from app.reporting.rankings import write_ranked_csv, write_ranked_markdown
 from app.scoring.cluster_scoring import score_cluster
+from app.research.signals import build_research_signal
 from app.sources.ebay import (
     EbayClient,
     extract_item_summaries,
@@ -943,6 +949,112 @@ def enrich_clusters(
                 "clusters_enriched": processed,
             }
         )
+
+
+@app.command("research-signals")
+def research_signals(
+    limit: int = typer.Option(0, "--limit", min=0, help="Optional limit of clusters to analyse"),
+):
+    with SessionLocal() as db:
+        clusters = get_product_clusters(db)
+
+        enrichment_rows = db.execute(
+            text(
+                """
+                SELECT
+                    cluster_id,
+                    category_hint,
+                    buyer_intent,
+                    visual_hook_score,
+                    fragility_risk,
+                    assembly_complexity,
+                    supplier_search_terms_json,
+                    confidence_score
+                FROM cluster_enrichments
+                """
+            )
+        ).fetchall()
+        enrichment_map = {row.cluster_id: row for row in enrichment_rows}
+
+        written = 0
+        for cluster in clusters[: limit or None]:
+            enrichment = enrichment_map.get(cluster.id)
+            signal = build_research_signal(cluster, enrichment)
+            upsert_cluster_research_signal(
+                db,
+                cluster_id=cluster.id,
+                supplier_intelligence_score=signal["supplier_intelligence_score"],
+                ad_signal_score=signal["ad_signal_score"],
+                competitor_saturation_score=signal["competitor_saturation_score"],
+                multi_market_score=signal["multi_market_score"],
+                trend_score=signal["trend_score"],
+                handling_complexity_score=signal["handling_complexity_score"],
+                supplier_search_query=signal["supplier_search_query"],
+                supplier_terms_json=json.dumps(signal["supplier_terms"], ensure_ascii=False),
+                supplier_notes=signal["supplier_notes"],
+                ad_notes=signal["ad_notes"],
+                competitor_notes=signal["competitor_notes"],
+                trend_notes=signal["trend_notes"],
+                score_adjustment=signal["score_adjustment"],
+            )
+            written += 1
+
+        print_json({"status": "completed", "research_signals_written": written})
+
+
+@app.command("show-signals")
+def show_signals(
+    limit: int = typer.Option(20, "--limit", "-l", min=1, max=200),
+):
+    with SessionLocal() as db:
+        rows = get_research_signal_summary(db, limit=limit)
+    print_json({"count": len(rows), "signals": rows})
+
+
+@app.command("snapshot-trends")
+def snapshot_trends():
+    with SessionLocal() as db:
+        rows = get_score_summary(db, limit=None)
+        written = 0
+        for row in rows:
+            insert_score_snapshot(
+                db,
+                cluster_id=row["cluster_id"],
+                total_score=row.get("total_score") or 0.0,
+                recommendation=row.get("recommendation"),
+                gross_profit_estimate=row.get("gross_profit_estimate"),
+                max_cpa=row.get("max_cpa"),
+            )
+            written += 1
+    print_json({"status": "completed", "snapshots_written": written})
+
+
+@app.command("trend-report")
+def trend_report(
+    limit: int = typer.Option(20, "--limit", "-l", min=1, max=200),
+):
+    with SessionLocal() as db:
+        rows = get_cluster_trends(db, limit=limit)
+    print_json({"count": len(rows), "trends": rows})
+
+
+@app.command("compare-products")
+def compare_products(
+    cluster_ids: list[int] = typer.Argument(..., help="Two or more cluster IDs to compare"),
+):
+    unique_ids = []
+    for cluster_id in cluster_ids:
+        if cluster_id not in unique_ids:
+            unique_ids.append(cluster_id)
+
+    with SessionLocal() as db:
+        rows = get_cluster_comparison_rows(db, unique_ids)
+
+    print_json({
+        "count": len(rows),
+        "cluster_ids": unique_ids,
+        "comparison": rows,
+    })
 
 if __name__ == "__main__":
     app()

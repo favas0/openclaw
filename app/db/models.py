@@ -181,6 +181,47 @@ from sqlalchemy import ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 
+
+
+class ClusterResearchSignal(Base):
+    __tablename__ = "cluster_research_signals"
+    __table_args__ = (
+        UniqueConstraint("cluster_id", name="uq_cluster_research_signals_cluster_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    cluster_id: Mapped[int] = mapped_column(ForeignKey("product_clusters.id"), index=True)
+
+    supplier_intelligence_score: Mapped[float] = mapped_column(Float, default=0.0)
+    ad_signal_score: Mapped[float] = mapped_column(Float, default=0.0)
+    competitor_saturation_score: Mapped[float] = mapped_column(Float, default=0.0)
+    multi_market_score: Mapped[float] = mapped_column(Float, default=0.0)
+    trend_score: Mapped[float] = mapped_column(Float, default=0.0)
+    handling_complexity_score: Mapped[float] = mapped_column(Float, default=0.0)
+
+    supplier_search_query: Mapped[str | None] = mapped_column(Text, nullable=True)
+    supplier_terms_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    supplier_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ad_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    competitor_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    trend_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    score_adjustment: Mapped[float] = mapped_column(Float, default=0.0)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
+class ClusterScoreSnapshot(Base):
+    __tablename__ = "cluster_score_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    cluster_id: Mapped[int] = mapped_column(ForeignKey("product_clusters.id"), index=True)
+    total_score: Mapped[float] = mapped_column(Float, default=0.0)
+    recommendation: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    gross_profit_estimate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    max_cpa: Mapped[float | None] = mapped_column(Float, nullable=True)
+    captured_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
 class ClusterEnrichment(Base):
     __tablename__ = "cluster_enrichments"
     __table_args__ = (

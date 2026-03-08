@@ -7,7 +7,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
+    ClusterResearchSignal,
     ClusterScore,
+    ClusterScoreSnapshot,
     IngestionRun,
     NormalizedListing,
     ProductCluster,
@@ -256,6 +258,49 @@ def upsert_cluster_score(
     return row
 
 
+def upsert_cluster_research_signal(db: Session, **kwargs) -> ClusterResearchSignal:
+    cluster_id = kwargs["cluster_id"]
+    stmt = select(ClusterResearchSignal).where(ClusterResearchSignal.cluster_id == cluster_id)
+    existing = db.scalar(stmt)
+
+    if existing:
+        for key, value in kwargs.items():
+            setattr(existing, key, value)
+        existing.updated_at = datetime.utcnow()
+        db.add(existing)
+        db.commit()
+        db.refresh(existing)
+        return existing
+
+    row = ClusterResearchSignal(**kwargs)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def insert_score_snapshot(
+    db: Session,
+    *,
+    cluster_id: int,
+    total_score: float,
+    recommendation: str | None,
+    gross_profit_estimate: float | None,
+    max_cpa: float | None,
+) -> ClusterScoreSnapshot:
+    row = ClusterScoreSnapshot(
+        cluster_id=cluster_id,
+        total_score=total_score,
+        recommendation=recommendation,
+        gross_profit_estimate=gross_profit_estimate,
+        max_cpa=max_cpa,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
 def get_run_summary(db: Session) -> list[dict]:
     stmt = select(IngestionRun).order_by(IngestionRun.id.desc())
     rows = db.scalars(stmt).all()
@@ -365,6 +410,93 @@ def get_scored_clusters(
         results = results[:limit]
 
     return results
+
+
+def get_research_signal_summary(db: Session, *, limit: int | None = None) -> list[dict]:
+    stmt = (
+        select(ProductCluster, ClusterResearchSignal)
+        .join(ClusterResearchSignal, ClusterResearchSignal.cluster_id == ProductCluster.id)
+        .order_by(
+            ClusterResearchSignal.score_adjustment.desc(),
+            ClusterResearchSignal.supplier_intelligence_score.desc(),
+            ProductCluster.id.asc(),
+        )
+    )
+    rows = db.execute(stmt).all()
+    results = [
+        {
+            "cluster_id": cluster.id,
+            "cluster_title": cluster.cluster_title,
+            "query": cluster.query,
+            "supplier_intelligence_score": signal.supplier_intelligence_score,
+            "ad_signal_score": signal.ad_signal_score,
+            "competitor_saturation_score": signal.competitor_saturation_score,
+            "multi_market_score": signal.multi_market_score,
+            "trend_score": signal.trend_score,
+            "handling_complexity_score": signal.handling_complexity_score,
+            "supplier_search_query": signal.supplier_search_query,
+            "supplier_terms_json": signal.supplier_terms_json,
+            "supplier_notes": signal.supplier_notes,
+            "ad_notes": signal.ad_notes,
+            "competitor_notes": signal.competitor_notes,
+            "trend_notes": signal.trend_notes,
+            "score_adjustment": signal.score_adjustment,
+        }
+        for cluster, signal in rows
+    ]
+    if limit is not None:
+        results = results[:limit]
+    return results
+
+
+def get_cluster_comparison_rows(db: Session, cluster_ids: list[int]) -> list[dict]:
+    scored = {row["cluster_id"]: row for row in get_scored_clusters(db, limit=None)}
+    signals = {row["cluster_id"]: row for row in get_research_signal_summary(db, limit=None)}
+
+    rows: list[dict] = []
+    for cluster_id in cluster_ids:
+        score_row = scored.get(cluster_id)
+        if not score_row:
+            continue
+        signal_row = signals.get(cluster_id, {})
+        rows.append({**score_row, **signal_row})
+    return rows
+
+
+def get_cluster_trends(db: Session, *, limit: int = 20) -> list[dict]:
+    clusters = get_scored_clusters(db, limit=None)
+    results: list[dict] = []
+
+    for cluster in clusters:
+        stmt = (
+            select(ClusterScoreSnapshot)
+            .where(ClusterScoreSnapshot.cluster_id == cluster["cluster_id"])
+            .order_by(ClusterScoreSnapshot.captured_at.asc(), ClusterScoreSnapshot.id.asc())
+        )
+        snaps = list(db.scalars(stmt).all())
+        if not snaps:
+            continue
+
+        first = snaps[0]
+        latest = snaps[-1]
+        results.append(
+            {
+                "cluster_id": cluster["cluster_id"],
+                "cluster_title": cluster["cluster_title"],
+                "snapshots": len(snaps),
+                "first_score": first.total_score,
+                "latest_score": latest.total_score,
+                "score_delta": round((latest.total_score or 0.0) - (first.total_score or 0.0), 2),
+                "first_recommendation": first.recommendation,
+                "latest_recommendation": latest.recommendation,
+                "latest_gross_profit_estimate": latest.gross_profit_estimate,
+                "latest_max_cpa": latest.max_cpa,
+                "latest_captured_at": latest.captured_at,
+            }
+        )
+
+    results.sort(key=lambda row: (-(row["score_delta"]), -(row["latest_score"]), row["cluster_id"]))
+    return results[:limit]
 
 
 def get_score_summary(

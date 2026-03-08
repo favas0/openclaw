@@ -169,3 +169,29 @@ class ClusterScore(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
     cluster: Mapped["ProductCluster"] = relationship(back_populates="score")
+
+from sqlalchemy import ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column
+
+
+class ClusterEnrichment(Base):
+    __tablename__ = "cluster_enrichments"
+    __table_args__ = (
+        UniqueConstraint("cluster_id", name="uq_cluster_enrichments_cluster_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    cluster_id: Mapped[int] = mapped_column(ForeignKey("product_clusters.id"), index=True)
+
+    product_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    category_hint: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    attributes_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    buyer_intent: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    visual_hook_score: Mapped[int] = mapped_column(Integer, default=0)
+    fragility_risk: Mapped[int] = mapped_column(Integer, default=0)
+    assembly_complexity: Mapped[int] = mapped_column(Integer, default=0)
+
+    supplier_search_terms_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    confidence_score: Mapped[int] = mapped_column(Integer, default=0)
+    model_name: Mapped[str | None] = mapped_column(String(255), nullable=True)

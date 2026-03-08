@@ -1,13 +1,38 @@
 services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
   openclaw:
     build: .
     container_name: openclaw
     env_file:
       - /home/favas/.config/openclaw/.env
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: llama3.1:8b
     volumes:
+      - .:/app
       - /home/favas/data/openclaw:/data
     extra_hosts:
       - "host.docker.internal:host-gateway"
     working_dir: /app
     command: ["python", "-m", "app.cli", "--help"]
     restart: "no"
+    depends_on:
+      - ollama
+
+volumes:
+  ollama_data:

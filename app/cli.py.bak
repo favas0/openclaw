@@ -785,6 +785,11 @@ def export_products(
         }
     )
 
+
+if __name__ == "__main__":
+    app()
+
+
 @app.command("enrich-clusters")
 def enrich_clusters(
     limit: int = typer.Option(0, "--limit", min=0, help="Optional limit of clusters to enrich"),
@@ -902,6 +907,3 @@ def enrich_clusters(
                 "clusters_enriched": processed,
             }
         )
-
-if __name__ == "__main__":
-    app()

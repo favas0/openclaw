@@ -177,12 +177,6 @@ class ClusterScore(Base):
 
     cluster: Mapped["ProductCluster"] = relationship(back_populates="score")
 
-from sqlalchemy import ForeignKey, Integer, String, Text, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
-
-
-
-
 class ClusterResearchSignal(Base):
     __tablename__ = "cluster_research_signals"
     __table_args__ = (

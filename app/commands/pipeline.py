@@ -127,8 +127,11 @@ def register_pipeline_commands(app: typer.Typer) -> None:
                         condition=mapped["condition"],
                         is_sold_signal=mapped["is_sold_signal"],
                         raw_payload=mapped["raw_payload"],
+                        auto_commit=False,
                     )
                     inserted += 1
+
+                db.commit()
 
                 finish_ingestion_run(
                     db,
@@ -136,6 +139,7 @@ def register_pipeline_commands(app: typer.Typer) -> None:
                     status="completed",
                     listings_found=inserted,
                     notes=f"{notes}; duplicates_skipped={duplicates_skipped}",
+                    auto_commit=True,
                 )
 
                 print_json(
@@ -168,8 +172,10 @@ def register_pipeline_commands(app: typer.Typer) -> None:
 
             for raw in raw_listings:
                 norm = normalize_raw_listing(raw)
-                upsert_normalized_listing(db, **norm)
+                upsert_normalized_listing(db, auto_commit=False, **norm)
                 processed += 1
+
+            db.commit()
 
             print_json(
                 {
@@ -200,6 +206,7 @@ def register_pipeline_commands(app: typer.Typer) -> None:
                     median_total_price=cluster["median_total_price"],
                     high_ticket_count=cluster["high_ticket_count"],
                     brand_risk_count=cluster["brand_risk_count"],
+                    auto_commit=False,
                 )
 
                 for normalized_listing_id in cluster["normalized_listing_ids"]:
@@ -207,7 +214,10 @@ def register_pipeline_commands(app: typer.Typer) -> None:
                         db,
                         normalized_listing_id=normalized_listing_id,
                         cluster_id=cluster_row.id,
+                        auto_commit=False,
                     )
+
+            db.commit()
 
             print_json(
                 {
@@ -281,9 +291,11 @@ def register_pipeline_commands(app: typer.Typer) -> None:
                     total_score=score["total_score"],
                     recommendation=score["recommendation"],
                     notes=score["notes"],
+                    auto_commit=False,
                 )
                 written += 1
 
+            db.commit()
             print_json({"status": "completed", "clusters_scored": written})
 
     @app.command("enrich-clusters")
@@ -443,7 +455,9 @@ def register_pipeline_commands(app: typer.Typer) -> None:
                     competitor_notes=signal["competitor_notes"],
                     trend_notes=signal["trend_notes"],
                     score_adjustment=signal["score_adjustment"],
+                    auto_commit=False,
                 )
                 written += 1
 
+            db.commit()
             print_json({"status": "completed", "research_signals_written": written})

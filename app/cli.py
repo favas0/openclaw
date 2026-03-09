@@ -12,23 +12,30 @@ from app.db.database import Base, SessionLocal, engine
 from app.enrichment.cluster_enricher import ClusterEnricher
 from app.db.repo import (
     assign_listing_to_cluster,
+    count_cluster_market_snapshots,
     count_cluster_scores,
     count_normalized_listings,
     count_product_clusters,
     count_raw_listings,
     create_ingestion_run,
+    find_existing_raw_listing_in_run,
     finish_ingestion_run,
     get_cluster_comparison_rows,
     get_cluster_summary,
     get_cluster_trends,
+    get_ingestion_run,
+    get_latest_completed_run,
+    get_latest_market_snapshot_rows_for_query,
     get_normalized_listings,
     get_product_clusters,
     get_raw_listings,
     get_research_signal_summary,
+    get_run_cluster_market_rows,
     get_run_summary,
     get_score_summary,
     insert_raw_listing,
     insert_score_snapshot,
+    upsert_cluster_market_snapshot,
     upsert_cluster_research_signal,
     upsert_cluster_score,
     upsert_normalized_listing,
@@ -340,6 +347,7 @@ def collect_ebay(
                 mode = "demo"
 
             inserted = 0
+            duplicates_skipped = 0
             for item in items:
                 if mode == "api":
                     mapped = map_api_item_to_raw_listing(
@@ -349,6 +357,20 @@ def collect_ebay(
                     )
                 else:
                     mapped = map_demo_item_to_raw_listing(item, query=query)
+
+                existing = find_existing_raw_listing_in_run(
+                    db,
+                    run_id=run.id,
+                    source_name=mapped["source_name"],
+                    external_id=mapped.get("external_id"),
+                    item_url=mapped.get("item_url"),
+                    title=mapped.get("title"),
+                    seller_name=mapped.get("seller_name"),
+                )
+                if existing:
+                    duplicates_skipped += 1
+                    continue
+
                 insert_raw_listing(
                     db,
                     run_id=run.id,
@@ -375,7 +397,7 @@ def collect_ebay(
                 run_id=run.id,
                 status="completed",
                 listings_found=inserted,
-                notes=notes,
+                notes=f"{notes}; duplicates_skipped={duplicates_skipped}",
             )
 
             print_json(
@@ -383,6 +405,7 @@ def collect_ebay(
                     "status": "completed",
                     "query": query,
                     "inserted": inserted,
+                    "duplicates_skipped": duplicates_skipped,
                     "mode": mode,
                     "marketplace_id": active_marketplace_id,
                     "notes": notes,
@@ -550,6 +573,7 @@ def stats():
                 "normalized_listings": count_normalized_listings(db),
                 "product_clusters": count_product_clusters(db),
                 "cluster_scores": count_cluster_scores(db),
+                "cluster_market_snapshots": count_cluster_market_snapshots(db),
             }
         )
 
@@ -1047,10 +1071,44 @@ def show_signals(
 
 
 @app.command("snapshot-trends")
-def snapshot_trends():
+def snapshot_trends(
+    run_id: int | None = typer.Option(
+        None,
+        "--run-id",
+        help="Optional ingestion run ID to snapshot for market trends; defaults to latest completed run",
+    ),
+):
     with SessionLocal() as db:
+        active_run = get_ingestion_run(db, run_id) if run_id is not None else get_latest_completed_run(db, source_name="ebay")
+        snapshot_run_info = {
+            "snapshot_run_id": active_run.id if active_run else None,
+            "snapshot_query": active_run.query if active_run else None,
+            "snapshot_source_name": active_run.source_name if active_run else None,
+        }
+
+        if run_id is not None and not active_run:
+            print_json(
+                {
+                    "status": "not_found",
+                    "message": "No ingestion run found for the provided run_id",
+                    "run_id": run_id,
+                }
+            )
+            raise typer.Exit(code=1)
+
+        if active_run and active_run.status != "completed":
+            print_json(
+                {
+                    "status": "invalid_run",
+                    "message": "Trend snapshots require a completed ingestion run",
+                    "run_id": active_run.id,
+                    "run_status": active_run.status,
+                }
+            )
+            raise typer.Exit(code=1)
+
         rows = get_score_summary(db, limit=None)
-        written = 0
+        score_snapshots_written = 0
         for row in rows:
             insert_score_snapshot(
                 db,
@@ -1060,8 +1118,66 @@ def snapshot_trends():
                 gross_profit_estimate=row.get("gross_profit_estimate"),
                 max_cpa=row.get("max_cpa"),
             )
-            written += 1
-    print_json({"status": "completed", "snapshots_written": written})
+            score_snapshots_written += 1
+
+        market_snapshots_written = 0
+
+        if active_run:
+            market_rows = get_run_cluster_market_rows(db, run_id=active_run.id)
+            previous_rows = get_latest_market_snapshot_rows_for_query(
+                db,
+                source_name=active_run.source_name,
+                query=active_run.query,
+                exclude_run_id=active_run.id,
+            )
+            current_cluster_ids = {row["cluster_id"] for row in market_rows}
+
+            for row in market_rows:
+                upsert_cluster_market_snapshot(
+                    db,
+                    cluster_id=row["cluster_id"],
+                    run_id=active_run.id,
+                    source_name=row["source_name"],
+                    query=row["query"],
+                    listing_count=row["listing_count"],
+                    seller_count=row["seller_count"],
+                    min_total_price=row["min_total_price"],
+                    max_total_price=row["max_total_price"],
+                    avg_total_price=row["avg_total_price"],
+                    median_total_price=row["median_total_price"],
+                    external_ids_json=row["external_ids_json"],
+                    seller_names_json=row["seller_names_json"],
+                )
+                market_snapshots_written += 1
+
+            for previous in previous_rows:
+                if previous.cluster_id in current_cluster_ids:
+                    continue
+                upsert_cluster_market_snapshot(
+                    db,
+                    cluster_id=previous.cluster_id,
+                    run_id=active_run.id,
+                    source_name=active_run.source_name,
+                    query=active_run.query,
+                    listing_count=0,
+                    seller_count=0,
+                    min_total_price=None,
+                    max_total_price=None,
+                    avg_total_price=None,
+                    median_total_price=None,
+                    external_ids_json="[]",
+                    seller_names_json="[]",
+                )
+                market_snapshots_written += 1
+
+    print_json(
+        {
+            "status": "completed",
+            "score_snapshots_written": score_snapshots_written,
+            "market_snapshots_written": market_snapshots_written,
+            **snapshot_run_info,
+        }
+    )
 
 
 @app.command("trend-report")

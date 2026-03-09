@@ -5,7 +5,7 @@ import typer
 from app.commands.shared import explain_row, print_json, shortlist_rows
 from app.config import settings
 from app.db.database import SessionLocal
-from app.db.repo import get_cluster_comparison_rows, get_score_summary
+from app.db.repo import get_cluster_comparison_rows, get_reporting_summary
 from app.reporting.rankings import write_ranked_csv, write_ranked_markdown
 
 
@@ -26,9 +26,9 @@ def register_reporting_commands(app: typer.Typer) -> None:
             max=200,
             help="Maximum ranked products to show",
         ),
-    ):
+        ):
         with SessionLocal() as db:
-            rows = get_score_summary(
+            rows = get_reporting_summary(
                 db,
                 recommendation=recommendation,
                 limit=limit,
@@ -75,7 +75,7 @@ def register_reporting_commands(app: typer.Typer) -> None:
         ),
     ):
         with SessionLocal() as db:
-            rows = get_score_summary(
+            rows = get_reporting_summary(
                 db,
                 recommendation=recommendation,
                 limit=None,
@@ -108,7 +108,7 @@ def register_reporting_commands(app: typer.Typer) -> None:
         cluster_id: int = typer.Argument(..., help="Cluster ID to explain"),
     ):
         with SessionLocal() as db:
-            rows = get_score_summary(
+            rows = get_reporting_summary(
                 db,
                 recommendation=None,
                 limit=None,
@@ -154,6 +154,35 @@ def register_reporting_commands(app: typer.Typer) -> None:
                 },
                 "recommendation": match.get("recommendation"),
                 "notes": match.get("notes"),
+                "research_signals": {
+                    "supplier_intelligence_score": match.get("supplier_intelligence_score"),
+                    "ad_signal_score": match.get("ad_signal_score"),
+                    "competitor_saturation_score": match.get("competitor_saturation_score"),
+                    "multi_market_score": match.get("multi_market_score"),
+                    "trend_score": match.get("trend_score"),
+                    "handling_complexity_score": match.get("handling_complexity_score"),
+                },
+                "supplier_intelligence": {
+                    "search_query": match.get("supplier_search_query"),
+                    "terms": match.get("supplier_terms"),
+                    "catalog_fit_score": match.get("supplier_catalog_fit_score"),
+                    "shipping_profile_score": match.get("supplier_shipping_profile_score"),
+                    "margin_support_score": match.get("supplier_margin_support_score"),
+                    "evidence_score": match.get("supplier_evidence_score"),
+                    "confidence_score": match.get("supplier_confidence_score"),
+                    "strengths": match.get("supplier_strengths"),
+                    "risks": match.get("supplier_risks"),
+                    "notes": match.get("supplier_notes"),
+                },
+                "competitor_intelligence": {
+                    "seller_pressure_score": match.get("competitor_seller_pressure_score"),
+                    "listing_pressure_score": match.get("competitor_listing_pressure_score"),
+                    "price_pressure_score": match.get("competitor_price_pressure_score"),
+                    "market_maturity_score": match.get("competitor_market_maturity_score"),
+                    "strengths": match.get("competitor_strengths"),
+                    "risks": match.get("competitor_risks"),
+                    "notes": match.get("competitor_notes"),
+                },
                 "strengths": explanation["strengths"],
                 "weaknesses": explanation["weaknesses"],
                 "summary": explanation["summary"],
@@ -203,7 +232,7 @@ def register_reporting_commands(app: typer.Typer) -> None:
             raise typer.BadParameter("format must be one of: csv, md, both")
 
         with SessionLocal() as db:
-            rows = get_score_summary(
+            rows = get_reporting_summary(
                 db,
                 recommendation=recommendation,
                 limit=None,
@@ -282,7 +311,7 @@ def register_reporting_commands(app: typer.Typer) -> None:
             raise typer.BadParameter("format must be one of: csv, md, both")
 
         with SessionLocal() as db:
-            rows = get_score_summary(
+            rows = get_reporting_summary(
                 db,
                 recommendation=recommendation,
                 limit=limit,

@@ -67,6 +67,8 @@ docker compose run --rm openclaw python -m app.cli explain-product 3
 
 Use this when the score gap is small and you want more context before deciding what to test.
 
+The comparison output now includes supplier and competitor sub-scores, which makes it easier to distinguish margin-friendly but crowded markets from cleaner supplier paths with lighter competition.
+
 ## Workflow 4: Track Trend Movement Across Runs
 
 Run the full pipeline for a query, then snapshot:
@@ -102,6 +104,8 @@ For a cleaner operator view, prefer filtering the report to the active query:
 ```bash
 docker compose run --rm openclaw python -m app.cli trend-report --query "walking pad" --source-name ebay --sort-by movement --limit 20
 docker compose run --rm openclaw python -m app.cli trend-report --query "walking pad" --sort-by new-items --limit 20
+docker compose run --rm openclaw python -m app.cli trend-report --query "walking pad" --sort-by recommendation-change --recommendation-changed-only --min-market-snapshots 2 --limit 20
+docker compose run --rm openclaw python -m app.cli trend-report --query "walking pad" --sort-by stable-supply-price --min-market-snapshots 2 --limit 20
 ```
 
 Sort modes:
@@ -110,6 +114,8 @@ Sort modes:
 - `score`: biggest score changes first
 - `price`: biggest median price moves first
 - `new-items`: clusters with the most newly seen items first
+- `recommendation-change`: rows where recommendation changed, ranked by score movement
+- `stable-supply-price`: the most stable supply series with meaningful price movement first
 
 ## Workflow 5: Export A Review Pack
 

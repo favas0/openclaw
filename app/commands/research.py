@@ -10,7 +10,14 @@ from app.research.trend_snapshots import capture_trend_snapshots
 
 
 def register_research_commands(app: typer.Typer) -> None:
-    trend_sort_modes = ("movement", "score", "price", "new-items")
+    trend_sort_modes = (
+        "movement",
+        "score",
+        "price",
+        "new-items",
+        "recommendation-change",
+        "stable-supply-price",
+    )
 
     @app.command("show-signals")
     def show_signals(
@@ -51,7 +58,18 @@ def register_research_commands(app: typer.Typer) -> None:
         sort_by: str = typer.Option(
             "movement",
             "--sort-by",
-            help="Sort mode: movement | score | price | new-items",
+            help="Sort mode: movement | score | price | new-items | recommendation-change | stable-supply-price",
+        ),
+        min_market_snapshots: int = typer.Option(
+            1,
+            "--min-market-snapshots",
+            min=1,
+            help="Only include trend rows with at least this many market snapshots",
+        ),
+        recommendation_changed_only: bool = typer.Option(
+            False,
+            "--recommendation-changed-only",
+            help="Only include rows where recommendation changed between first and latest score snapshot",
         ),
     ):
         sort_by = sort_by.strip().lower()
@@ -67,6 +85,8 @@ def register_research_commands(app: typer.Typer) -> None:
                 query=query,
                 source_name=source_name,
                 sort_by=sort_by,
+                min_market_snapshots=min_market_snapshots,
+                recommendation_changed_only=recommendation_changed_only,
             )
         print_json(
             {
@@ -75,6 +95,8 @@ def register_research_commands(app: typer.Typer) -> None:
                     "query": query,
                     "source_name": source_name,
                     "sort_by": sort_by,
+                    "min_market_snapshots": min_market_snapshots,
+                    "recommendation_changed_only": recommendation_changed_only,
                     "limit": limit,
                 },
                 "trends": rows,

@@ -290,6 +290,88 @@ class TrendReportingTests(DatabaseTestCase):
         self.assertEqual(rows[1]["cluster_id"], cluster_two.id)
         self.assertEqual(rows[1]["new_items_since_last_snapshot"], 2)
 
+    def test_get_cluster_trends_filters_to_recommendation_changes(self) -> None:
+        cluster = upsert_product_cluster(
+            self.db,
+            cluster_key="standing desk",
+            cluster_title="standing desk",
+            source_name="ebay",
+            query="standing desk",
+            listing_count=4,
+            seller_count=3,
+            min_total_price=199.0,
+            max_total_price=249.0,
+            avg_total_price=224.0,
+            median_total_price=224.0,
+            high_ticket_count=4,
+            brand_risk_count=0,
+        )
+
+        upsert_cluster_market_snapshot(
+            self.db,
+            cluster_id=cluster.id,
+            run_id=1,
+            source_name="ebay",
+            query="standing desk",
+            listing_count=3,
+            seller_count=2,
+            min_total_price=199.0,
+            max_total_price=239.0,
+            avg_total_price=219.0,
+            median_total_price=219.0,
+            external_ids_json=json.dumps(["a", "b", "c"]),
+            seller_names_json=json.dumps(["s1", "s2"]),
+        )
+        upsert_cluster_market_snapshot(
+            self.db,
+            cluster_id=cluster.id,
+            run_id=2,
+            source_name="ebay",
+            query="standing desk",
+            listing_count=4,
+            seller_count=3,
+            min_total_price=205.0,
+            max_total_price=249.0,
+            avg_total_price=227.0,
+            median_total_price=227.0,
+            external_ids_json=json.dumps(["a", "b", "c", "d"]),
+            seller_names_json=json.dumps(["s1", "s2", "s3"]),
+        )
+
+        insert_score_snapshot(
+            self.db,
+            cluster_id=cluster.id,
+            source_name="ebay",
+            query="standing desk",
+            total_score=36.0,
+            recommendation="watch",
+            gross_profit_estimate=65.0,
+            max_cpa=39.0,
+        )
+        insert_score_snapshot(
+            self.db,
+            cluster_id=cluster.id,
+            source_name="ebay",
+            query="standing desk",
+            total_score=44.0,
+            recommendation="test",
+            gross_profit_estimate=79.0,
+            max_cpa=47.0,
+        )
+
+        rows = get_cluster_trends(
+            self.db,
+            limit=10,
+            sort_by="recommendation-change",
+            recommendation_changed_only=True,
+            min_market_snapshots=2,
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertTrue(rows[0]["recommendation_changed"])
+        self.assertEqual(rows[0]["recommendation_change"], "watch -> test")
+        self.assertGreater(rows[0]["supply_stability_score"], 0.0)
+
     def test_capture_trend_snapshots_uses_explicit_run_id(self) -> None:
         run_one = create_ingestion_run(self.db, source_name="ebay", query="walking pad")
         run_two = create_ingestion_run(self.db, source_name="ebay", query="walking pad")

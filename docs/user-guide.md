@@ -81,7 +81,7 @@ Create database tables:
 docker compose run --rm openclaw python -m app.cli initdb
 ```
 
-If you already have a database and have pulled newer schema changes, run `initdb` again. It creates missing additive tables such as `cluster_market_snapshots`.
+If you already have a database and have pulled newer schema changes, run `initdb` again. It creates missing additive tables such as `cluster_market_snapshots` and newer additive columns used for structured research signals and query-aware score snapshots.
 
 ## Standard Research Workflow
 
@@ -152,6 +152,12 @@ docker compose run --rm openclaw python -m app.cli research-signals
 
 This adds secondary heuristics such as supplier intelligence, ad signal quality, multi-market potential, and trend suitability.
 
+The research signal output now includes:
+
+- structured supplier breakdowns such as catalog fit, shipping profile, margin support, evidence, and confidence
+- structured competitor breakdowns such as seller pressure, listing pressure, price pressure, and market maturity
+- clearer supplier and competitor notes for operator review
+
 ### 7. Review Results
 
 Top products:
@@ -159,6 +165,8 @@ Top products:
 ```bash
 docker compose run --rm openclaw python -m app.cli top-products --limit 20
 ```
+
+`top-products` now includes merged research signal fields when they exist, so supplier and competitor context shows up alongside the main score row.
 
 Shortlist:
 
@@ -211,6 +219,8 @@ Filter to one query or source when you want a cleaner operational view:
 ```bash
 docker compose run --rm openclaw python -m app.cli trend-report --query "walking pad" --source-name ebay --sort-by movement --limit 20
 docker compose run --rm openclaw python -m app.cli trend-report --query "walking pad" --sort-by new-items --limit 20
+docker compose run --rm openclaw python -m app.cli trend-report --query "walking pad" --sort-by recommendation-change --recommendation-changed-only --min-market-snapshots 2 --limit 20
+docker compose run --rm openclaw python -m app.cli trend-report --query "walking pad" --sort-by stable-supply-price --min-market-snapshots 2 --limit 20
 ```
 
 The trend report includes:
@@ -226,9 +236,12 @@ The trend report includes:
 
 - `--query` filters to one exact ingestion query
 - `--source-name` filters to one source such as `ebay`
-- `--sort-by movement|score|price|new-items` changes ranking priority without changing the underlying data
+- `--sort-by movement|score|price|new-items|recommendation-change|stable-supply-price` changes ranking priority without changing the underlying data
+- `--min-market-snapshots` hides thin trend rows until enough snapshots exist
+- `--recommendation-changed-only` shows only clusters whose recommendation moved between the first and latest score snapshot
 
 Trend rows are now tracked per `cluster_id + source_name + query` market series. That prevents snapshots from different queries for the same cluster from being merged into one misleading trend line.
+Score movement is also tracked against the same query-aware series, so recommendation-change views are materially cleaner.
 
 ## Useful Support Commands
 
@@ -261,6 +274,8 @@ Side-by-side comparison:
 ```bash
 docker compose run --rm openclaw python -m app.cli compare-products 1 2 3
 ```
+
+Comparison rows now include structured supplier and competitor sub-scores in addition to the main economics and scoring fields.
 
 ## How To Read The Outputs
 

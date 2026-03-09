@@ -68,11 +68,12 @@ Avoid redesigning the stack around a provider abstraction that forces all source
 
 ## Database Change Rule
 
-The project currently relies on `Base.metadata.create_all()` through `initdb` for additive tables.
+The project currently relies on `initdb` for additive schema updates.
 
 That means:
 
-- additive schema changes are acceptable
+- additive tables are created through `Base.metadata.create_all()`
+- additive columns used by newer features are added through the initdb compatibility path
 - destructive or rename-style changes should be treated carefully
 - documentation should note when `initdb` must be rerun
 

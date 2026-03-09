@@ -21,6 +21,7 @@ from app.db.repositories.ingestion import (
 )
 from app.db.repositories.research import (
     get_cluster_comparison_rows,
+    get_reporting_summary,
     get_research_signal_summary,
     upsert_cluster_research_signal,
 )
@@ -58,6 +59,7 @@ __all__ = [
     "get_normalized_listings",
     "get_product_clusters",
     "get_raw_listings",
+    "get_reporting_summary",
     "get_research_signal_summary",
     "get_run_cluster_market_rows",
     "get_run_summary",

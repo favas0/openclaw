@@ -157,8 +157,10 @@ Important fields:
 - `handling_complexity_score`
 - `supplier_search_query`
 - `supplier_terms_json`
+- `supplier_breakdown_json`
 - `supplier_notes`
 - `ad_notes`
+- `competitor_breakdown_json`
 - `competitor_notes`
 - `trend_notes`
 - `score_adjustment`
@@ -170,6 +172,16 @@ Invariant:
 ### `cluster_score_snapshots`
 
 Stores point-in-time score snapshots.
+
+Important fields:
+
+- `cluster_id`
+- `source_name`
+- `query`
+- `total_score`
+- `recommendation`
+- `gross_profit_estimate`
+- `max_cpa`
 
 Use cases:
 
@@ -228,5 +240,6 @@ Provider-specific ingestion stays isolated in source modules, but the rest of th
 ## Operational Notes
 
 - rerun `initdb` after additive schema changes
+- current additive schema changes include query-aware score snapshots and structured research breakdown fields
 - snapshot tables only become useful after repeated runs
 - trend reports depend on both score snapshots and market snapshots

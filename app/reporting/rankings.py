@@ -7,6 +7,7 @@ from pathlib import Path
 RANKING_FIELDS = [
     "cluster_id",
     "cluster_title",
+    "source_name",
     "query",
     "listing_count",
     "seller_count",
@@ -30,6 +31,27 @@ RANKING_FIELDS = [
     "base_total_score",
     "total_score",
     "recommendation",
+    "supplier_intelligence_score",
+    "ad_signal_score",
+    "competitor_saturation_score",
+    "multi_market_score",
+    "trend_score",
+    "handling_complexity_score",
+    "supplier_catalog_fit_score",
+    "supplier_shipping_profile_score",
+    "supplier_margin_support_score",
+    "supplier_evidence_score",
+    "supplier_confidence_score",
+    "competitor_seller_pressure_score",
+    "competitor_listing_pressure_score",
+    "competitor_price_pressure_score",
+    "competitor_market_maturity_score",
+    "supplier_search_query",
+    "supplier_terms_json",
+    "supplier_notes",
+    "competitor_notes",
+    "trend_notes",
+    "score_adjustment",
     "notes",
 ]
 
@@ -68,6 +90,7 @@ def write_ranked_markdown(path: Path, rows: list[dict]) -> Path:
         lines.append("")
         lines.append(f"- Recommendation: **{row.get('recommendation', '')}**")
         lines.append(f"- Total score: **{row.get('total_score', '')}**")
+        lines.append(f"- Source: `{row.get('source_name', '')}`")
         lines.append(f"- Query: `{row.get('query', '')}`")
         lines.append(f"- Listing count: `{row.get('listing_count', '')}`")
         lines.append(f"- Seller count: `{row.get('seller_count', '')}`")
@@ -85,10 +108,18 @@ def write_ranked_markdown(path: Path, rows: list[dict]) -> Path:
         lines.append(f"- Confidence score: `{row.get('confidence_score', '')}`")
         lines.append(f"- Enrichment adjustment: `{row.get('enrichment_adjustment', '')}`")
         lines.append(f"- Base total score: `{row.get('base_total_score', '')}`")
+        lines.append(f"- Supplier intelligence score: `{row.get('supplier_intelligence_score', '')}`")
+        lines.append(f"- Competitor saturation score: `{row.get('competitor_saturation_score', '')}`")
+        lines.append(f"- Supplier evidence score: `{row.get('supplier_evidence_score', '')}`")
+        lines.append(f"- Competitor price pressure score: `{row.get('competitor_price_pressure_score', '')}`")
         lines.append(f"- Sell price estimate: `{row.get('sell_price_estimate', '')}`")
         lines.append(f"- Supplier cost estimate: `{row.get('supplier_cost_estimate', '')}`")
         lines.append(f"- Shipping cost estimate: `{row.get('shipping_cost_estimate', '')}`")
         lines.append(f"- Fees estimate: `{row.get('fees_estimate', '')}`")
+        lines.append(f"- Supplier query: `{row.get('supplier_search_query', '')}`")
+        lines.append(f"- Supplier notes: {row.get('supplier_notes') or ''}")
+        lines.append(f"- Competitor notes: {row.get('competitor_notes') or ''}")
+        lines.append(f"- Trend notes: {row.get('trend_notes') or ''}")
         notes = row.get("notes") or ""
         lines.append(f"- Notes: {notes}")
         lines.append("")

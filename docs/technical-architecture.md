@@ -83,6 +83,8 @@ The collector writes shared `raw_listings` records so downstream stages remain s
 
 [app/research/signals.py](/home/favas/projects/openclaw/app/research/signals.py) adds secondary heuristic signals around supplier fit, ad potential, competition, multi-market expansion, and trend suitability.
 
+The research layer now stores structured supplier and competitor breakdowns, not just top-line notes. That keeps the logic deterministic while giving operators clearer reasons behind supplier viability and market saturation.
+
 ### 7. Trend Snapshots
 
 [app/research/trend_snapshots.py](/home/favas/projects/openclaw/app/research/trend_snapshots.py) captures:
@@ -93,6 +95,8 @@ The collector writes shared `raw_listings` records so downstream stages remain s
 This allows `trend-report` to show actual market movement, not just score history.
 
 Trend reporting is query-aware at the market snapshot layer. Market series are interpreted per `cluster_id + source_name + query`, which avoids mixing snapshots from different ingestion queries into one trend line for the same underlying cluster.
+
+Score snapshots are also now stamped with `source_name` and `query`, so recommendation and score movement can be interpreted against the correct market series instead of only the raw cluster id.
 
 ## Source Architecture
 

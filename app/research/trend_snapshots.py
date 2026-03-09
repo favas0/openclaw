@@ -47,6 +47,8 @@ def capture_trend_snapshots(
         insert_score_snapshot(
             db,
             cluster_id=row["cluster_id"],
+            source_name=row.get("source_name"),
+            query=row.get("query"),
             total_score=row.get("total_score") or 0.0,
             recommendation=row.get("recommendation"),
             gross_profit_estimate=row.get("gross_profit_estimate"),

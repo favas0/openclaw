@@ -195,8 +195,10 @@ class ClusterResearchSignal(Base):
 
     supplier_search_query: Mapped[str | None] = mapped_column(Text, nullable=True)
     supplier_terms_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    supplier_breakdown_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     supplier_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     ad_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    competitor_breakdown_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     competitor_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     trend_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     score_adjustment: Mapped[float] = mapped_column(Float, default=0.0)
@@ -210,6 +212,8 @@ class ClusterScoreSnapshot(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     cluster_id: Mapped[int] = mapped_column(ForeignKey("product_clusters.id"), index=True)
+    source_name: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+    query: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     total_score: Mapped[float] = mapped_column(Float, default=0.0)
     recommendation: Mapped[str | None] = mapped_column(String(30), nullable=True)
     gross_profit_estimate: Mapped[float | None] = mapped_column(Float, nullable=True)

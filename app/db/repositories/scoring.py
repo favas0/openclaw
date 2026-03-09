@@ -76,6 +76,8 @@ def insert_score_snapshot(
     db: Session,
     *,
     cluster_id: int,
+    source_name: str | None = None,
+    query: str | None = None,
     total_score: float,
     recommendation: str | None,
     gross_profit_estimate: float | None,
@@ -84,6 +86,8 @@ def insert_score_snapshot(
 ) -> ClusterScoreSnapshot:
     row = ClusterScoreSnapshot(
         cluster_id=cluster_id,
+        source_name=source_name,
+        query=query,
         total_score=total_score,
         recommendation=recommendation,
         gross_profit_estimate=gross_profit_estimate,
@@ -116,6 +120,7 @@ def get_scored_clusters(
             {
                 "cluster_id": cluster.id,
                 "cluster_title": cluster.cluster_title,
+                "source_name": cluster.source_name,
                 "query": cluster.query,
                 "listing_count": cluster.listing_count,
                 "seller_count": cluster.seller_count,

@@ -5,7 +5,7 @@ from rich import print
 
 from app.commands.shared import print_json
 from app.config import settings
-from app.db.database import Base, SessionLocal, engine
+from app.db.database import Base, SessionLocal, engine, ensure_additive_schema
 from app.db.repo import (
     count_cluster_market_snapshots,
     count_cluster_scores,
@@ -52,6 +52,7 @@ def register_system_commands(app: typer.Typer) -> None:
         db_path = Path(settings.openclaw_db_path)
         db_path.parent.mkdir(parents=True, exist_ok=True)
         Base.metadata.create_all(bind=engine)
+        ensure_additive_schema(engine)
         print(f"[green]Database tables ready:[/green] {db_path}")
 
     @app.command("seed-demo")

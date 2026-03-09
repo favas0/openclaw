@@ -55,6 +55,8 @@ def explain_row(row: dict) -> dict:
     competition_score = row.get("competition_score") or 0.0
     supplier_fit_score = row.get("supplier_fit_score") or 0.0
     risk_score = row.get("risk_score") or 0.0
+    supplier_intelligence_score = row.get("supplier_intelligence_score") or 0.0
+    competitor_saturation_score = row.get("competitor_saturation_score") or 0.0
     gross_profit_estimate = row.get("gross_profit_estimate")
     max_cpa = row.get("max_cpa")
     recommendation = row.get("recommendation")
@@ -94,6 +96,16 @@ def explain_row(row: dict) -> dict:
         weaknesses.append(f"high competition score ({competition_score})")
     elif competition_score <= 4:
         strengths.append(f"manageable competition score ({competition_score})")
+
+    if supplier_intelligence_score >= 7:
+        strengths.append(f"strong supplier intelligence ({supplier_intelligence_score})")
+    elif supplier_intelligence_score <= 4:
+        weaknesses.append(f"weak supplier intelligence ({supplier_intelligence_score})")
+
+    if competitor_saturation_score >= 7:
+        weaknesses.append(f"market looks saturated ({competitor_saturation_score})")
+    elif competitor_saturation_score <= 4 and competitor_saturation_score > 0:
+        strengths.append(f"competition may still be workable ({competitor_saturation_score})")
 
     if gross_profit_estimate is not None:
         if gross_profit_estimate >= 100:

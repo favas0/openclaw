@@ -11,6 +11,10 @@ from app.db.repositories._common import persist_row
 from app.db.repositories.catalog import get_product_clusters
 
 
+def clamp(value: float, low: float = 0.0, high: float = 10.0) -> float:
+    return max(low, min(high, value))
+
+
 def upsert_cluster_market_snapshot(
     db: Session,
     *,
@@ -154,6 +158,24 @@ def _normalized_filter(value: str | None) -> str | None:
 
 
 def _trend_sort_key(sort_by: str, row: dict) -> tuple:
+    if sort_by == "recommendation-change":
+        return (
+            -(1 if row.get("recommendation_changed") else 0),
+            -abs(row.get("score_delta") or 0.0),
+            -abs(row.get("listing_count_delta") or 0),
+            row["cluster_id"],
+            row["query"],
+        )
+
+    if sort_by == "stable-supply-price":
+        return (
+            -(row.get("supply_stability_score") or 0.0),
+            -abs(row.get("median_price_delta") or 0.0),
+            -(row.get("market_snapshots") or 0),
+            row["cluster_id"],
+            row["query"],
+        )
+
     if sort_by == "score":
         return (
             -abs(row.get("score_delta") or 0.0),
@@ -190,6 +212,37 @@ def _trend_sort_key(sort_by: str, row: dict) -> tuple:
     )
 
 
+def _score_snapshot_series_key(
+    snap: ClusterScoreSnapshot,
+    cluster: ProductCluster | None,
+) -> tuple[int, str, str]:
+    source_name = _normalized_filter(getattr(snap, "source_name", None)) or _normalized_filter(
+        getattr(cluster, "source_name", None)
+    ) or ""
+    query = _normalized_filter(getattr(snap, "query", None)) or _normalized_filter(
+        getattr(cluster, "query", None)
+    ) or ""
+    return snap.cluster_id, source_name, query
+
+
+def _supply_stability_score(
+    *,
+    first_listing_count: int,
+    latest_listing_count: int,
+    first_seller_count: int,
+    latest_seller_count: int,
+    new_items_since_last_snapshot: int,
+    removed_items_since_last_snapshot: int,
+) -> float:
+    baseline_listing_count = max(first_listing_count, latest_listing_count, 1)
+    turnover_ratio = (new_items_since_last_snapshot + removed_items_since_last_snapshot) / baseline_listing_count
+    score = 10.0
+    score -= min(abs(latest_listing_count - first_listing_count) * 1.2, 4.0)
+    score -= min(abs(latest_seller_count - first_seller_count) * 1.5, 3.0)
+    score -= min(turnover_ratio * 3.0, 3.0)
+    return round(clamp(score, 0.0, 10.0), 2)
+
+
 def get_cluster_trends(
     db: Session,
     *,
@@ -197,6 +250,8 @@ def get_cluster_trends(
     source_name: str | None = None,
     query: str | None = None,
     sort_by: str = "movement",
+    min_market_snapshots: int = 1,
+    recommendation_changed_only: bool = False,
 ) -> list[dict]:
     cluster_map = {cluster.id: cluster for cluster in get_product_clusters(db)}
     normalized_source_name = _normalized_filter(source_name)
@@ -232,14 +287,17 @@ def get_cluster_trends(
 
         market_map.setdefault((snap.cluster_id, snap_source_name, snap_query), []).append(snap)
 
-    score_map: dict[int, list[ClusterScoreSnapshot]] = {}
+    score_map: dict[tuple[int, str, str], list[ClusterScoreSnapshot]] = {}
     for snap in score_snaps:
-        score_map.setdefault(snap.cluster_id, []).append(snap)
+        cluster = cluster_map.get(snap.cluster_id)
+        score_map.setdefault(_score_snapshot_series_key(snap, cluster), []).append(snap)
 
     results: list[dict] = []
     for (cluster_id, _snap_source_name, _snap_query), snaps in market_map.items():
         cluster = cluster_map.get(cluster_id)
         if not cluster or not snaps:
+            continue
+        if len(snaps) < max(min_market_snapshots, 1):
             continue
 
         first = snaps[0]
@@ -249,13 +307,31 @@ def get_cluster_trends(
         latest_ids = set(json.loads(latest.external_ids_json or "[]"))
         previous_ids = set(json.loads(previous.external_ids_json or "[]")) if previous else set()
 
-        score_series = score_map.get(cluster_id, [])
+        score_series = score_map.get((cluster_id, _snap_source_name, _snap_query), [])
         score_first = score_series[0] if score_series else None
         score_latest = score_series[-1] if score_series else None
 
         median_price_delta = None
         if first.median_total_price is not None and latest.median_total_price is not None:
             median_price_delta = round(latest.median_total_price - first.median_total_price, 2)
+
+        new_items_since_last_snapshot = len(latest_ids - previous_ids) if previous else len(latest_ids)
+        removed_items_since_last_snapshot = len(previous_ids - latest_ids) if previous else 0
+        recommendation_changed = (
+            bool(score_first and score_latest)
+            and (score_first.recommendation or "") != (score_latest.recommendation or "")
+        )
+        if recommendation_changed_only and not recommendation_changed:
+            continue
+
+        supply_stability_score = _supply_stability_score(
+            first_listing_count=first.listing_count,
+            latest_listing_count=latest.listing_count,
+            first_seller_count=first.seller_count,
+            latest_seller_count=latest.seller_count,
+            new_items_since_last_snapshot=new_items_since_last_snapshot,
+            removed_items_since_last_snapshot=removed_items_since_last_snapshot,
+        )
 
         results.append(
             {
@@ -275,8 +351,9 @@ def get_cluster_trends(
                 "first_median_total_price": first.median_total_price,
                 "latest_median_total_price": latest.median_total_price,
                 "median_price_delta": median_price_delta,
-                "new_items_since_last_snapshot": len(latest_ids - previous_ids) if previous else len(latest_ids),
-                "removed_items_since_last_snapshot": len(previous_ids - latest_ids) if previous else 0,
+                "new_items_since_last_snapshot": new_items_since_last_snapshot,
+                "removed_items_since_last_snapshot": removed_items_since_last_snapshot,
+                "supply_stability_score": supply_stability_score,
                 "score_snapshots": len(score_series),
                 "first_score": score_first.total_score if score_first else None,
                 "latest_score": score_latest.total_score if score_latest else None,
@@ -285,6 +362,12 @@ def get_cluster_trends(
                 else None,
                 "first_recommendation": score_first.recommendation if score_first else None,
                 "latest_recommendation": score_latest.recommendation if score_latest else None,
+                "recommendation_changed": recommendation_changed,
+                "recommendation_change": (
+                    f"{score_first.recommendation} -> {score_latest.recommendation}"
+                    if recommendation_changed and score_first and score_latest
+                    else None
+                ),
                 "latest_gross_profit_estimate": score_latest.gross_profit_estimate if score_latest else None,
                 "latest_max_cpa": score_latest.max_cpa if score_latest else None,
                 "latest_captured_at": latest.captured_at,

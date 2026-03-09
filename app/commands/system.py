@@ -113,6 +113,7 @@ def register_system_commands(app: typer.Typer) -> None:
                     condition="New",
                     is_sold_signal=False,
                     raw_payload={"demo": True},
+                    auto_commit=False,
                 )
 
             finish_ingestion_run(
@@ -121,6 +122,7 @@ def register_system_commands(app: typer.Typer) -> None:
                 status="completed",
                 listings_found=len(demo_rows),
                 notes="Demo seed inserted",
+                auto_commit=True,
             )
             print("[green]Inserted demo run and listings.[/green]")
 

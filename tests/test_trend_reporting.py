@@ -1,11 +1,19 @@
 import json
 
 from app.db.repo import (
+    assign_listing_to_cluster,
+    create_ingestion_run,
+    finish_ingestion_run,
     get_cluster_trends,
+    get_latest_market_snapshot_rows_for_query,
+    insert_raw_listing,
     insert_score_snapshot,
     upsert_cluster_market_snapshot,
+    upsert_normalized_listing,
     upsert_product_cluster,
+    upsert_cluster_score,
 )
+from app.research.trend_snapshots import capture_trend_snapshots
 from tests.support import DatabaseTestCase
 
 
@@ -87,3 +95,125 @@ class TrendReportingTests(DatabaseTestCase):
         self.assertEqual(row["removed_items_since_last_snapshot"], 1)
         self.assertEqual(row["score_delta"], 8.5)
         self.assertEqual(row["latest_recommendation"], "test")
+
+    def test_capture_trend_snapshots_uses_explicit_run_id(self) -> None:
+        run_one = create_ingestion_run(self.db, source_name="ebay", query="walking pad")
+        run_two = create_ingestion_run(self.db, source_name="ebay", query="walking pad")
+
+        raw_one = insert_raw_listing(
+            self.db,
+            run_id=run_one.id,
+            source_name="ebay",
+            query="walking pad",
+            external_id="one",
+            title="Walking Pad One",
+            price=190.0,
+            shipping_cost=0.0,
+            seller_name="seller_one",
+            item_url="https://example.com/one",
+        )
+        raw_two = insert_raw_listing(
+            self.db,
+            run_id=run_two.id,
+            source_name="ebay",
+            query="walking pad",
+            external_id="two",
+            title="Walking Pad Two",
+            price=200.0,
+            shipping_cost=0.0,
+            seller_name="seller_two",
+            item_url="https://example.com/two",
+        )
+
+        cluster = upsert_product_cluster(
+            self.db,
+            cluster_key="walkingpad treadmill",
+            cluster_title="walkingpad treadmill",
+            source_name="ebay",
+            query="walking pad",
+            listing_count=2,
+            seller_count=2,
+            min_total_price=190.0,
+            max_total_price=200.0,
+            avg_total_price=195.0,
+            median_total_price=195.0,
+            high_ticket_count=2,
+            brand_risk_count=0,
+        )
+
+        norm_one = upsert_normalized_listing(
+            self.db,
+            raw_listing_id=raw_one.id,
+            source_name="ebay",
+            query="walking pad",
+            original_title="Walking Pad One",
+            normalized_title="walking pad one",
+            canonical_tokens="one walkingpad",
+            price=190.0,
+            shipping_cost=0.0,
+            total_price=190.0,
+            currency="GBP",
+            seller_name="seller_one",
+            category="Fitness",
+            condition="New",
+            token_count=3,
+            has_brand_risk=False,
+            is_high_ticket_candidate=True,
+        )
+        norm_two = upsert_normalized_listing(
+            self.db,
+            raw_listing_id=raw_two.id,
+            source_name="ebay",
+            query="walking pad",
+            original_title="Walking Pad Two",
+            normalized_title="walking pad two",
+            canonical_tokens="two walkingpad",
+            price=200.0,
+            shipping_cost=0.0,
+            total_price=200.0,
+            currency="GBP",
+            seller_name="seller_two",
+            category="Fitness",
+            condition="New",
+            token_count=3,
+            has_brand_risk=False,
+            is_high_ticket_candidate=True,
+        )
+
+        assign_listing_to_cluster(self.db, normalized_listing_id=norm_one.id, cluster_id=cluster.id)
+        assign_listing_to_cluster(self.db, normalized_listing_id=norm_two.id, cluster_id=cluster.id)
+
+        upsert_cluster_score(
+            self.db,
+            cluster_id=cluster.id,
+            demand_score=6.0,
+            sales_signal_score=6.0,
+            competition_score=5.0,
+            supplier_fit_score=8.0,
+            risk_score=1.0,
+            sell_price_estimate=195.0,
+            supplier_cost_estimate=81.9,
+            shipping_cost_estimate=20.0,
+            fees_estimate=12.7,
+            gross_profit_estimate=80.4,
+            max_cpa=48.2,
+            total_score=41.3,
+            recommendation="watch",
+            notes="ok",
+        )
+
+        finish_ingestion_run(self.db, run_id=run_one.id, status="completed", listings_found=1)
+        finish_ingestion_run(self.db, run_id=run_two.id, status="completed", listings_found=1)
+
+        result = capture_trend_snapshots(self.db, run_id=run_one.id)
+        snapshot_rows = get_latest_market_snapshot_rows_for_query(
+            self.db,
+            source_name="ebay",
+            query="walking pad",
+        )
+
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(result["snapshot_run_id"], run_one.id)
+        self.assertEqual(result["market_snapshots_written"], 1)
+        self.assertEqual(len(snapshot_rows), 1)
+        self.assertEqual(snapshot_rows[0].run_id, run_one.id)

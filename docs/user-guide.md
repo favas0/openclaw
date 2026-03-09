@@ -206,6 +206,13 @@ Then review trend movement:
 docker compose run --rm openclaw python -m app.cli trend-report --limit 20
 ```
 
+Filter to one query or source when you want a cleaner operational view:
+
+```bash
+docker compose run --rm openclaw python -m app.cli trend-report --query "walking pad" --source-name ebay --sort-by movement --limit 20
+docker compose run --rm openclaw python -m app.cli trend-report --query "walking pad" --sort-by new-items --limit 20
+```
+
 The trend report includes:
 
 - listing count change
@@ -214,6 +221,14 @@ The trend report includes:
 - items appearing since the previous snapshot
 - items disappearing since the previous snapshot
 - score movement over time
+
+`trend-report` options:
+
+- `--query` filters to one exact ingestion query
+- `--source-name` filters to one source such as `ebay`
+- `--sort-by movement|score|price|new-items` changes ranking priority without changing the underlying data
+
+Trend rows are now tracked per `cluster_id + source_name + query` market series. That prevents snapshots from different queries for the same cluster from being merged into one misleading trend line.
 
 ## Useful Support Commands
 

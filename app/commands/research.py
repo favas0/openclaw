@@ -10,6 +10,8 @@ from app.research.trend_snapshots import capture_trend_snapshots
 
 
 def register_research_commands(app: typer.Typer) -> None:
+    trend_sort_modes = ("movement", "score", "price", "new-items")
+
     @app.command("show-signals")
     def show_signals(
         limit: int = typer.Option(20, "--limit", "-l", min=1, max=200),
@@ -36,7 +38,45 @@ def register_research_commands(app: typer.Typer) -> None:
     @app.command("trend-report")
     def trend_report(
         limit: int = typer.Option(20, "--limit", "-l", min=1, max=200),
+        query: str | None = typer.Option(
+            None,
+            "--query",
+            help="Optional exact query filter for trend rows, e.g. 'walking pad'",
+        ),
+        source_name: str | None = typer.Option(
+            None,
+            "--source-name",
+            help="Optional source filter, e.g. 'ebay'",
+        ),
+        sort_by: str = typer.Option(
+            "movement",
+            "--sort-by",
+            help="Sort mode: movement | score | price | new-items",
+        ),
     ):
+        sort_by = sort_by.strip().lower()
+        if sort_by not in trend_sort_modes:
+            raise typer.BadParameter(
+                f"sort-by must be one of: {', '.join(trend_sort_modes)}"
+            )
+
         with SessionLocal() as db:
-            rows = get_cluster_trends(db, limit=limit)
-        print_json({"count": len(rows), "trends": rows})
+            rows = get_cluster_trends(
+                db,
+                limit=limit,
+                query=query,
+                source_name=source_name,
+                sort_by=sort_by,
+            )
+        print_json(
+            {
+                "count": len(rows),
+                "filters": {
+                    "query": query,
+                    "source_name": source_name,
+                    "sort_by": sort_by,
+                    "limit": limit,
+                },
+                "trends": rows,
+            }
+        )

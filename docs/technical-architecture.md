@@ -92,6 +92,8 @@ The collector writes shared `raw_listings` records so downstream stages remain s
 
 This allows `trend-report` to show actual market movement, not just score history.
 
+Trend reporting is query-aware at the market snapshot layer. Market series are interpreted per `cluster_id + source_name + query`, which avoids mixing snapshots from different ingestion queries into one trend line for the same underlying cluster.
+
 ## Source Architecture
 
 OpenClaw intentionally does not use a generic multi-provider `collect` command.

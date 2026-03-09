@@ -96,6 +96,200 @@ class TrendReportingTests(DatabaseTestCase):
         self.assertEqual(row["score_delta"], 8.5)
         self.assertEqual(row["latest_recommendation"], "test")
 
+    def test_get_cluster_trends_keeps_query_series_separate(self) -> None:
+        cluster = upsert_product_cluster(
+            self.db,
+            cluster_key="walkingpad treadmill",
+            cluster_title="walkingpad treadmill",
+            source_name="ebay",
+            query="walking pad",
+            listing_count=3,
+            seller_count=3,
+            min_total_price=180.0,
+            max_total_price=220.0,
+            avg_total_price=200.0,
+            median_total_price=200.0,
+            high_ticket_count=3,
+            brand_risk_count=0,
+        )
+
+        upsert_cluster_market_snapshot(
+            self.db,
+            cluster_id=cluster.id,
+            run_id=1,
+            source_name="ebay",
+            query="walking pad",
+            listing_count=2,
+            seller_count=2,
+            min_total_price=190.0,
+            max_total_price=200.0,
+            avg_total_price=195.0,
+            median_total_price=195.0,
+            external_ids_json=json.dumps(["a", "b"]),
+            seller_names_json=json.dumps(["s1", "s2"]),
+        )
+        upsert_cluster_market_snapshot(
+            self.db,
+            cluster_id=cluster.id,
+            run_id=2,
+            source_name="ebay",
+            query="walking pad",
+            listing_count=4,
+            seller_count=3,
+            min_total_price=185.0,
+            max_total_price=205.0,
+            avg_total_price=195.0,
+            median_total_price=192.5,
+            external_ids_json=json.dumps(["a", "b", "c", "d"]),
+            seller_names_json=json.dumps(["s1", "s2", "s3"]),
+        )
+        upsert_cluster_market_snapshot(
+            self.db,
+            cluster_id=cluster.id,
+            run_id=3,
+            source_name="ebay",
+            query="treadmill",
+            listing_count=1,
+            seller_count=1,
+            min_total_price=220.0,
+            max_total_price=220.0,
+            avg_total_price=220.0,
+            median_total_price=220.0,
+            external_ids_json=json.dumps(["x"]),
+            seller_names_json=json.dumps(["seller_x"]),
+        )
+
+        insert_score_snapshot(
+            self.db,
+            cluster_id=cluster.id,
+            total_score=42.0,
+            recommendation="watch",
+            gross_profit_estimate=75.0,
+            max_cpa=45.0,
+        )
+
+        rows = get_cluster_trends(self.db, limit=10)
+
+        self.assertEqual(len(rows), 2)
+        walking_pad_row = next(row for row in rows if row["query"] == "walking pad")
+        treadmill_row = next(row for row in rows if row["query"] == "treadmill")
+
+        self.assertEqual(walking_pad_row["market_snapshots"], 2)
+        self.assertEqual(walking_pad_row["listing_count_delta"], 2)
+        self.assertEqual(walking_pad_row["latest_listing_count"], 4)
+
+        self.assertEqual(treadmill_row["market_snapshots"], 1)
+        self.assertEqual(treadmill_row["listing_count_delta"], 0)
+        self.assertEqual(treadmill_row["latest_listing_count"], 1)
+
+        filtered_rows = get_cluster_trends(self.db, limit=10, query="walking pad")
+
+        self.assertEqual(len(filtered_rows), 1)
+        self.assertEqual(filtered_rows[0]["query"], "walking pad")
+        self.assertEqual(filtered_rows[0]["latest_listing_count"], 4)
+
+    def test_get_cluster_trends_supports_new_item_sorting(self) -> None:
+        cluster_one = upsert_product_cluster(
+            self.db,
+            cluster_key="cluster one",
+            cluster_title="cluster one",
+            source_name="ebay",
+            query="chairs",
+            listing_count=4,
+            seller_count=2,
+            min_total_price=100.0,
+            max_total_price=140.0,
+            avg_total_price=120.0,
+            median_total_price=120.0,
+            high_ticket_count=2,
+            brand_risk_count=0,
+        )
+        cluster_two = upsert_product_cluster(
+            self.db,
+            cluster_key="cluster two",
+            cluster_title="cluster two",
+            source_name="ebay",
+            query="chairs",
+            listing_count=3,
+            seller_count=2,
+            min_total_price=100.0,
+            max_total_price=130.0,
+            avg_total_price=115.0,
+            median_total_price=115.0,
+            high_ticket_count=2,
+            brand_risk_count=0,
+        )
+
+        upsert_cluster_market_snapshot(
+            self.db,
+            cluster_id=cluster_one.id,
+            run_id=1,
+            source_name="ebay",
+            query="chairs",
+            listing_count=1,
+            seller_count=1,
+            min_total_price=100.0,
+            max_total_price=100.0,
+            avg_total_price=100.0,
+            median_total_price=100.0,
+            external_ids_json=json.dumps(["a"]),
+            seller_names_json=json.dumps(["s1"]),
+        )
+        upsert_cluster_market_snapshot(
+            self.db,
+            cluster_id=cluster_one.id,
+            run_id=2,
+            source_name="ebay",
+            query="chairs",
+            listing_count=4,
+            seller_count=2,
+            min_total_price=100.0,
+            max_total_price=140.0,
+            avg_total_price=120.0,
+            median_total_price=120.0,
+            external_ids_json=json.dumps(["a", "b", "c", "d"]),
+            seller_names_json=json.dumps(["s1", "s2"]),
+        )
+
+        upsert_cluster_market_snapshot(
+            self.db,
+            cluster_id=cluster_two.id,
+            run_id=1,
+            source_name="ebay",
+            query="chairs",
+            listing_count=1,
+            seller_count=1,
+            min_total_price=110.0,
+            max_total_price=110.0,
+            avg_total_price=110.0,
+            median_total_price=110.0,
+            external_ids_json=json.dumps(["x"]),
+            seller_names_json=json.dumps(["s1"]),
+        )
+        upsert_cluster_market_snapshot(
+            self.db,
+            cluster_id=cluster_two.id,
+            run_id=2,
+            source_name="ebay",
+            query="chairs",
+            listing_count=3,
+            seller_count=2,
+            min_total_price=100.0,
+            max_total_price=130.0,
+            avg_total_price=115.0,
+            median_total_price=115.0,
+            external_ids_json=json.dumps(["x", "y", "z"]),
+            seller_names_json=json.dumps(["s1", "s2"]),
+        )
+
+        rows = get_cluster_trends(self.db, limit=10, sort_by="new-items")
+
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0]["cluster_id"], cluster_one.id)
+        self.assertEqual(rows[0]["new_items_since_last_snapshot"], 3)
+        self.assertEqual(rows[1]["cluster_id"], cluster_two.id)
+        self.assertEqual(rows[1]["new_items_since_last_snapshot"], 2)
+
     def test_capture_trend_snapshots_uses_explicit_run_id(self) -> None:
         run_one = create_ingestion_run(self.db, source_name="ebay", query="walking pad")
         run_two = create_ingestion_run(self.db, source_name="ebay", query="walking pad")

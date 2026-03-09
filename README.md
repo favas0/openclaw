@@ -91,6 +91,12 @@ View trend movement:
 docker compose run --rm openclaw python -m app.cli trend-report --limit 20
 ```
 
+Filter trend output by query and ranking mode when reviewing a specific market:
+
+```bash
+docker compose run --rm openclaw python -m app.cli trend-report --query "walking pad" --source-name ebay --sort-by new-items --limit 20
+```
+
 If you already have a database, rerun `initdb` after pulling schema updates so additive tables such as `cluster_market_snapshots` are created.
 
 ## Tests

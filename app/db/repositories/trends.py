@@ -148,8 +148,59 @@ def get_latest_market_snapshot_rows_for_query(
     return list(db.scalars(stmt).all())
 
 
-def get_cluster_trends(db: Session, *, limit: int = 20) -> list[dict]:
+def _normalized_filter(value: str | None) -> str | None:
+    text = (value or "").strip().lower()
+    return text or None
+
+
+def _trend_sort_key(sort_by: str, row: dict) -> tuple:
+    if sort_by == "score":
+        return (
+            -abs(row.get("score_delta") or 0.0),
+            -abs(row.get("listing_count_delta") or 0),
+            -(row.get("latest_score") or 0.0),
+            row["cluster_id"],
+            row["query"],
+        )
+
+    if sort_by == "price":
+        return (
+            -abs(row.get("median_price_delta") or 0.0),
+            -abs(row.get("listing_count_delta") or 0),
+            -(row.get("latest_median_total_price") or 0.0),
+            row["cluster_id"],
+            row["query"],
+        )
+
+    if sort_by == "new-items":
+        return (
+            -(row.get("new_items_since_last_snapshot") or 0),
+            -(row.get("removed_items_since_last_snapshot") or 0),
+            -(row.get("latest_listing_count") or 0),
+            row["cluster_id"],
+            row["query"],
+        )
+
+    return (
+        -abs(row.get("listing_count_delta") or 0),
+        -abs(row.get("seller_count_delta") or 0),
+        -(row.get("latest_listing_count") or 0),
+        row["cluster_id"],
+        row["query"],
+    )
+
+
+def get_cluster_trends(
+    db: Session,
+    *,
+    limit: int = 20,
+    source_name: str | None = None,
+    query: str | None = None,
+    sort_by: str = "movement",
+) -> list[dict]:
     cluster_map = {cluster.id: cluster for cluster in get_product_clusters(db)}
+    normalized_source_name = _normalized_filter(source_name)
+    normalized_query = _normalized_filter(query)
     market_snaps = list(
         db.scalars(
             select(ClusterMarketSnapshot).order_by(
@@ -169,16 +220,24 @@ def get_cluster_trends(db: Session, *, limit: int = 20) -> list[dict]:
         ).all()
     )
 
-    market_map: dict[int, list[ClusterMarketSnapshot]] = {}
+    market_map: dict[tuple[int, str, str], list[ClusterMarketSnapshot]] = {}
     for snap in market_snaps:
-        market_map.setdefault(snap.cluster_id, []).append(snap)
+        snap_source_name = _normalized_filter(snap.source_name) or ""
+        snap_query = _normalized_filter(snap.query) or ""
+
+        if normalized_source_name and snap_source_name != normalized_source_name:
+            continue
+        if normalized_query and snap_query != normalized_query:
+            continue
+
+        market_map.setdefault((snap.cluster_id, snap_source_name, snap_query), []).append(snap)
 
     score_map: dict[int, list[ClusterScoreSnapshot]] = {}
     for snap in score_snaps:
         score_map.setdefault(snap.cluster_id, []).append(snap)
 
     results: list[dict] = []
-    for cluster_id, snaps in market_map.items():
+    for (cluster_id, _snap_source_name, _snap_query), snaps in market_map.items():
         cluster = cluster_map.get(cluster_id)
         if not cluster or not snaps:
             continue
@@ -232,14 +291,7 @@ def get_cluster_trends(db: Session, *, limit: int = 20) -> list[dict]:
             }
         )
 
-    results.sort(
-        key=lambda row: (
-            -abs(row["listing_count_delta"]),
-            -abs(row["seller_count_delta"]),
-            -(row["latest_listing_count"] or 0),
-            row["cluster_id"],
-        )
-    )
+    results.sort(key=lambda row: _trend_sort_key(sort_by, row))
     return results[:limit]
 
 

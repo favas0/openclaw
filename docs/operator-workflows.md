@@ -97,6 +97,20 @@ Use this when you want to observe:
 - median price drift
 - products appearing or disappearing
 
+For a cleaner operator view, prefer filtering the report to the active query:
+
+```bash
+docker compose run --rm openclaw python -m app.cli trend-report --query "walking pad" --source-name ebay --sort-by movement --limit 20
+docker compose run --rm openclaw python -m app.cli trend-report --query "walking pad" --sort-by new-items --limit 20
+```
+
+Sort modes:
+
+- `movement`: biggest listing and seller swings first
+- `score`: biggest score changes first
+- `price`: biggest median price moves first
+- `new-items`: clusters with the most newly seen items first
+
 ## Workflow 5: Export A Review Pack
 
 Export a ranked overview:

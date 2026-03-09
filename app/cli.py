@@ -38,12 +38,8 @@ from app.normalize.processor import normalize_raw_listing
 from app.reporting.rankings import write_ranked_csv, write_ranked_markdown
 from app.scoring.cluster_scoring import score_cluster
 from app.research.signals import build_research_signal
-from app.sources.ebay import (
-    EbayClient,
-    extract_item_summaries,
-    get_demo_items,
-    map_item_summary_to_raw_listing,
-)
+from app.sources.ebay import get_demo_items, map_demo_item_to_raw_listing
+from app.sources.ebay_api import EbayBrowseApiClient, extract_item_summaries, map_api_item_to_raw_listing
 
 app = typer.Typer(
     help="OpenClaw V1 CLI",
@@ -188,7 +184,7 @@ def explain_row(row: dict) -> dict:
 def doctor():
     data_dir = Path(settings.openclaw_data_dir)
     db_path = Path(settings.openclaw_db_path)
-    ebay = EbayClient()
+    ebay = EbayBrowseApiClient()
 
     result = {
         "app_env": settings.app_env,
@@ -202,9 +198,10 @@ def doctor():
         "db_parent_exists": db_path.parent.exists(),
         "ebay_env": settings.ebay_env,
         "ebay_marketplace_id": settings.ebay_marketplace_id,
-        "has_ebay_app_id": bool(settings.ebay_app_id),
+        "has_ebay_client_id": bool(settings.ebay_client_id),
         "has_ebay_client_secret": bool(settings.ebay_client_secret),
         "ebay_credentials_ready": ebay.has_credentials(),
+        "ebay_default_collection_mode": "api" if ebay.has_credentials() else "demo",
     }
     print_json(result)
 
@@ -293,8 +290,18 @@ def collect_ebay(
     query: str = typer.Argument(..., help="Search query, e.g. 'walking pad'"),
     limit: int = typer.Option(20, "--limit", "-l", min=1, max=100),
     use_demo: bool = typer.Option(False, "--demo", help="Use built-in demo data"),
+    use_api: bool = typer.Option(False, "--api", help="Use the official eBay Browse API"),
+    marketplace_id: str | None = typer.Option(
+        None,
+        "--marketplace-id",
+        help="Optional eBay marketplace ID override, e.g. EBAY_GB",
+    ),
 ):
-    client = EbayClient()
+    if use_demo and use_api:
+        raise typer.BadParameter("Use either --demo or --api, not both")
+
+    client = EbayBrowseApiClient()
+    active_marketplace_id = client.resolve_marketplace_id(marketplace_id)
 
     with SessionLocal() as db:
         run = create_ingestion_run(
@@ -305,17 +312,43 @@ def collect_ebay(
         )
 
         try:
-            if use_demo or not client.has_credentials():
-                items = get_demo_items(query)
+            if use_demo:
+                items = get_demo_items(query)[:limit]
                 notes = "Demo mode used"
-            else:
-                payload = client.search_items(query=query, limit=limit)
+                mode = "demo"
+            elif use_api:
+                payload = client.search_items(
+                    query=query,
+                    limit=limit,
+                    marketplace_id=active_marketplace_id,
+                )
                 items = extract_item_summaries(payload)
-                notes = "Live eBay Browse API used"
+                notes = f"Official eBay Browse API used (marketplace={active_marketplace_id})"
+                mode = "api"
+            elif client.has_credentials():
+                payload = client.search_items(
+                    query=query,
+                    limit=limit,
+                    marketplace_id=active_marketplace_id,
+                )
+                items = extract_item_summaries(payload)
+                notes = f"Official eBay Browse API used (marketplace={active_marketplace_id})"
+                mode = "api"
+            else:
+                items = get_demo_items(query)[:limit]
+                notes = "Demo mode used (missing eBay API credentials)"
+                mode = "demo"
 
             inserted = 0
             for item in items:
-                mapped = map_item_summary_to_raw_listing(item, query)
+                if mode == "api":
+                    mapped = map_api_item_to_raw_listing(
+                        item,
+                        query=query,
+                        marketplace_id=active_marketplace_id,
+                    )
+                else:
+                    mapped = map_demo_item_to_raw_listing(item, query=query)
                 insert_raw_listing(
                     db,
                     run_id=run.id,
@@ -350,6 +383,8 @@ def collect_ebay(
                     "status": "completed",
                     "query": query,
                     "inserted": inserted,
+                    "mode": mode,
+                    "marketplace_id": active_marketplace_id,
                     "notes": notes,
                 }
             )

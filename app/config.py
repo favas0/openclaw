@@ -1,3 +1,4 @@
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,10 +12,15 @@ class Settings(BaseSettings):
     openclaw_data_dir: str = "/data"
     openclaw_db_path: str = "/data/db/openclaw.sqlite3"
 
-    ebay_app_id: str = ""
+    ebay_client_id: str = Field(
+        default="",
+        validation_alias=AliasChoices("EBAY_CLIENT_ID", "EBAY_APP_ID"),
+    )
+    ebay_client_secret: str = Field(
+        default="",
+        validation_alias=AliasChoices("EBAY_CLIENT_SECRET", "EBAY_CERT_ID"),
+    )
     ebay_dev_id: str = ""
-    ebay_cert_id: str = ""
-    ebay_client_secret: str = ""
     ebay_env: str = "production"
     ebay_marketplace_id: str = "EBAY_GB"
 
@@ -23,6 +29,14 @@ class Settings(BaseSettings):
         extra="ignore",
         case_sensitive=False,
     )
+
+    @property
+    def ebay_app_id(self) -> str:
+        return self.ebay_client_id
+
+    @property
+    def ebay_cert_id(self) -> str:
+        return self.ebay_client_secret
 
 
 settings = Settings()

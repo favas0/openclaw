@@ -1,131 +1,41 @@
-import base64
 from typing import Any
 
-import httpx
 
-from app.config import settings
-
-
-class EbayClient:
-    def __init__(self) -> None:
-        self.env = settings.ebay_env.lower().strip()
-        self.marketplace_id = settings.ebay_marketplace_id.strip() or "EBAY_GB"
-
-        if self.env == "sandbox":
-            self.identity_base = "https://api.sandbox.ebay.com"
-            self.api_base = "https://api.sandbox.ebay.com"
-        else:
-            self.identity_base = "https://api.ebay.com"
-            self.api_base = "https://api.ebay.com"
-
-    def has_credentials(self) -> bool:
-        return bool(settings.ebay_app_id and settings.ebay_client_secret)
-
-    def get_access_token(self) -> str:
-        if not self.has_credentials():
-            raise RuntimeError("Missing eBay credentials: EBAY_APP_ID and/or EBAY_CLIENT_SECRET")
-
-        raw = f"{settings.ebay_app_id}:{settings.ebay_client_secret}".encode("utf-8")
-        auth_b64 = base64.b64encode(raw).decode("utf-8")
-
-        headers = {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Authorization": f"Basic {auth_b64}",
-        }
-
-        data = {
-            "grant_type": "client_credentials",
-            "scope": "https://api.ebay.com/oauth/api_scope",
-        }
-
-        url = f"{self.identity_base}/identity/v1/oauth2/token"
-
-        with httpx.Client(timeout=30.0) as client:
-            response = client.post(url, headers=headers, data=data)
-            response.raise_for_status()
-            payload = response.json()
-
-        token = payload.get("access_token")
-        if not token:
-            raise RuntimeError("eBay OAuth succeeded but no access_token was returned")
-
-        return token
-
-    def search_items(self, query: str, limit: int = 20) -> dict[str, Any]:
-        token = self.get_access_token()
-
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "X-EBAY-C-MARKETPLACE-ID": self.marketplace_id,
-        }
-
-        params = {
-            "q": query,
-            "limit": min(limit, 200),
-        }
-
-        url = f"{self.api_base}/buy/browse/v1/item_summary/search"
-
-        with httpx.Client(timeout=30.0) as client:
-            response = client.get(url, headers=headers, params=params)
-            response.raise_for_status()
-            return response.json()
+def _parse_float(value: Any) -> float | None:
+    try:
+        return float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
 
 
-def extract_item_summaries(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    return payload.get("itemSummaries", []) or []
-
-
-def map_item_summary_to_raw_listing(item: dict[str, Any], query: str) -> dict[str, Any]:
-    price_value = None
-    shipping_cost = None
-    currency = None
-
+def map_demo_item_to_raw_listing(item: dict[str, Any], query: str) -> dict[str, Any]:
     price = item.get("price") or {}
-    if price:
-        try:
-            price_value = float(price.get("value")) if price.get("value") is not None else None
-        except (TypeError, ValueError):
-            price_value = None
-        currency = price.get("currency")
-
     shipping_options = item.get("shippingOptions") or []
-    if shipping_options:
-        first_shipping = shipping_options[0] or {}
-        shipping_cost_obj = first_shipping.get("shippingCost") or {}
-        try:
-            shipping_cost = (
-                float(shipping_cost_obj.get("value"))
-                if shipping_cost_obj.get("value") is not None
-                else None
-            )
-        except (TypeError, ValueError):
-            shipping_cost = None
-
+    first_shipping = shipping_options[0] if shipping_options else {}
+    shipping_cost_obj = (first_shipping or {}).get("shippingCost") or {}
     seller = item.get("seller") or {}
     image = item.get("image") or {}
 
-    category_path = item.get("categoryPath")
-    condition = item.get("condition")
-    item_web_url = item.get("itemWebUrl") or item.get("itemHref") or ""
-    external_id = item.get("itemId")
-
     return {
         "source_name": "ebay",
-        "external_id": external_id,
+        "external_id": item.get("itemId"),
         "query": query,
         "title": item.get("title") or "Untitled",
-        "price": price_value,
-        "shipping_cost": shipping_cost,
-        "currency": currency,
+        "price": _parse_float(price.get("value")),
+        "shipping_cost": _parse_float(shipping_cost_obj.get("value")),
+        "currency": price.get("currency") or shipping_cost_obj.get("currency"),
         "seller_name": seller.get("username"),
         "seller_url": None,
-        "item_url": item_web_url,
+        "item_url": item.get("itemWebUrl") or "",
         "image_url": image.get("imageUrl"),
-        "category": category_path,
-        "condition": condition,
+        "category": item.get("categoryPath"),
+        "condition": item.get("condition"),
         "is_sold_signal": False,
-        "raw_payload": item,
+        "raw_payload": {
+            "provider": "ebay_demo",
+            "query": query,
+            "item": item,
+        },
     }
 
 

@@ -222,6 +222,34 @@ class ClusterScoreSnapshot(Base):
     max_cpa: Mapped[float | None] = mapped_column(Float, nullable=True)
     captured_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
+
+class ClusterMarketSnapshot(Base):
+    __tablename__ = "cluster_market_snapshots"
+    __table_args__ = (
+        UniqueConstraint("cluster_id", "run_id", name="uq_cluster_market_snapshots_cluster_run"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    cluster_id: Mapped[int] = mapped_column(ForeignKey("product_clusters.id"), index=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("ingestion_runs.id"), index=True)
+
+    source_name: Mapped[str] = mapped_column(String(50), index=True)
+    query: Mapped[str] = mapped_column(String(255), index=True)
+
+    listing_count: Mapped[int] = mapped_column(Integer, default=0)
+    seller_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    min_total_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    max_total_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    avg_total_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    median_total_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    external_ids_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    seller_names_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    captured_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
 class ClusterEnrichment(Base):
     __tablename__ = "cluster_enrichments"
     __table_args__ = (

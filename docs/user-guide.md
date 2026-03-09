@@ -208,6 +208,8 @@ You can also snapshot a specific run:
 docker compose run --rm openclaw python -m app.cli snapshot-trends --run-id 3
 ```
 
+When a previously tracked cluster disappears from the latest run for the same query, `snapshot-trends` now backfills a zero-listing market snapshot and a placeholder score snapshot for that series. That keeps disappearance and later reappearance visible in `trend-report` instead of silently dropping the series.
+
 Then review trend movement:
 
 ```bash
@@ -221,6 +223,7 @@ docker compose run --rm openclaw python -m app.cli trend-report --query "walking
 docker compose run --rm openclaw python -m app.cli trend-report --query "walking pad" --sort-by new-items --limit 20
 docker compose run --rm openclaw python -m app.cli trend-report --query "walking pad" --sort-by recommendation-change --recommendation-changed-only --min-market-snapshots 2 --limit 20
 docker compose run --rm openclaw python -m app.cli trend-report --query "walking pad" --sort-by stable-supply-price --min-market-snapshots 2 --limit 20
+docker compose run --rm openclaw python -m app.cli trend-report --query "walking pad" --sort-by coverage --series-status disappeared --score-coverage-status market_absent --limit 20
 ```
 
 The trend report includes:
@@ -236,12 +239,15 @@ The trend report includes:
 
 - `--query` filters to one exact ingestion query
 - `--source-name` filters to one source such as `ebay`
-- `--sort-by movement|score|price|new-items|recommendation-change|stable-supply-price` changes ranking priority without changing the underlying data
+- `--sort-by movement|score|price|new-items|coverage|recommendation-change|stable-supply-price` changes ranking priority without changing the underlying data
 - `--min-market-snapshots` hides thin trend rows until enough snapshots exist
 - `--recommendation-changed-only` shows only clusters whose recommendation moved between the first and latest score snapshot
+- `--series-status` filters lifecycle states such as `new`, `active`, `sparse`, `disappeared`, and `reappeared`
+- `--score-coverage-status` filters whether the latest row is `scored`, `market_only`, or `market_absent`
 
 Trend rows are now tracked per `cluster_id + source_name + query` market series. That prevents snapshots from different queries for the same cluster from being merged into one misleading trend line.
 Score movement is also tracked against the same query-aware series, so recommendation-change views are materially cleaner.
+Trend rows now expose both `series_status` and `score_coverage_status`, which makes sparse runs, disappearances, and reappearances easier to review directly from the CLI.
 
 ## Useful Support Commands
 

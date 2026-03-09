@@ -106,6 +106,7 @@ docker compose run --rm openclaw python -m app.cli trend-report --query "walking
 docker compose run --rm openclaw python -m app.cli trend-report --query "walking pad" --sort-by new-items --limit 20
 docker compose run --rm openclaw python -m app.cli trend-report --query "walking pad" --sort-by recommendation-change --recommendation-changed-only --min-market-snapshots 2 --limit 20
 docker compose run --rm openclaw python -m app.cli trend-report --query "walking pad" --sort-by stable-supply-price --min-market-snapshots 2 --limit 20
+docker compose run --rm openclaw python -m app.cli trend-report --query "walking pad" --sort-by coverage --series-status disappeared --score-coverage-status market_absent --limit 20
 ```
 
 Sort modes:
@@ -114,8 +115,15 @@ Sort modes:
 - `score`: biggest score changes first
 - `price`: biggest median price moves first
 - `new-items`: clusters with the most newly seen items first
+- `coverage`: scored and continuity-rich rows first
 - `recommendation-change`: rows where recommendation changed, ranked by score movement
 - `stable-supply-price`: the most stable supply series with meaningful price movement first
+
+Lifecycle filters:
+
+- `--series-status disappeared` isolates clusters that vanished from the latest run
+- `--series-status reappeared` isolates clusters that came back after a zero-listing snapshot
+- `--score-coverage-status market_only` isolates rows with market evidence but missing current scoring coverage
 
 ## Workflow 5: Export A Review Pack
 

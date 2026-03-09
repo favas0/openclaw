@@ -187,6 +187,7 @@ Use cases:
 
 - score trend reporting
 - tracking changes in recommendation and economics over time
+- preserving query-series continuity even when the latest market snapshot has no active listings
 
 ### `cluster_market_snapshots`
 
@@ -215,6 +216,7 @@ Use cases:
 
 - real trend monitoring
 - appearance/disappearance detection
+- reappearance detection after zero-listing snapshots
 - listing count drift
 - seller count drift
 - median price drift

@@ -158,6 +158,15 @@ def _normalized_filter(value: str | None) -> str | None:
 
 
 def _trend_sort_key(sort_by: str, row: dict) -> tuple:
+    if sort_by == "coverage":
+        return (
+            -(1 if row.get("score_coverage_status") == "scored" else 0),
+            -(1 if row.get("series_status") == "active" else 0),
+            -(row.get("market_snapshots") or 0),
+            row["cluster_id"],
+            row["query"],
+        )
+
     if sort_by == "recommendation-change":
         return (
             -(1 if row.get("recommendation_changed") else 0),
@@ -212,6 +221,32 @@ def _trend_sort_key(sort_by: str, row: dict) -> tuple:
     )
 
 
+def _series_status(
+    *,
+    latest_listing_count: int,
+    previous_listing_count: int | None,
+    market_snapshots: int,
+    latest_seller_count: int,
+) -> str:
+    if latest_listing_count <= 0:
+        return "disappeared"
+    if previous_listing_count is not None and previous_listing_count <= 0:
+        return "reappeared"
+    if market_snapshots <= 1:
+        return "new"
+    if latest_listing_count <= 1 and latest_seller_count <= 1:
+        return "sparse"
+    return "active"
+
+
+def _score_coverage_status(*, latest_listing_count: int, score_latest: ClusterScoreSnapshot | None) -> str:
+    if latest_listing_count <= 0:
+        return "market_absent"
+    if not score_latest or score_latest.recommendation is None:
+        return "market_only"
+    return "scored"
+
+
 def _score_snapshot_series_key(
     snap: ClusterScoreSnapshot,
     cluster: ProductCluster | None,
@@ -252,6 +287,8 @@ def get_cluster_trends(
     sort_by: str = "movement",
     min_market_snapshots: int = 1,
     recommendation_changed_only: bool = False,
+    series_status: str | None = None,
+    score_coverage_status: str | None = None,
 ) -> list[dict]:
     cluster_map = {cluster.id: cluster for cluster in get_product_clusters(db)}
     normalized_source_name = _normalized_filter(source_name)
@@ -321,9 +358,6 @@ def get_cluster_trends(
             bool(score_first and score_latest)
             and (score_first.recommendation or "") != (score_latest.recommendation or "")
         )
-        if recommendation_changed_only and not recommendation_changed:
-            continue
-
         supply_stability_score = _supply_stability_score(
             first_listing_count=first.listing_count,
             latest_listing_count=latest.listing_count,
@@ -332,6 +366,23 @@ def get_cluster_trends(
             new_items_since_last_snapshot=new_items_since_last_snapshot,
             removed_items_since_last_snapshot=removed_items_since_last_snapshot,
         )
+        active_series_status = _series_status(
+            latest_listing_count=latest.listing_count,
+            previous_listing_count=previous.listing_count if previous else None,
+            market_snapshots=len(snaps),
+            latest_seller_count=latest.seller_count,
+        )
+        active_score_coverage_status = _score_coverage_status(
+            latest_listing_count=latest.listing_count,
+            score_latest=score_latest,
+        )
+
+        if recommendation_changed_only and not recommendation_changed:
+            continue
+        if series_status and active_series_status != series_status.strip().lower():
+            continue
+        if score_coverage_status and active_score_coverage_status != score_coverage_status.strip().lower():
+            continue
 
         results.append(
             {
@@ -354,6 +405,8 @@ def get_cluster_trends(
                 "new_items_since_last_snapshot": new_items_since_last_snapshot,
                 "removed_items_since_last_snapshot": removed_items_since_last_snapshot,
                 "supply_stability_score": supply_stability_score,
+                "series_status": active_series_status,
+                "score_coverage_status": active_score_coverage_status,
                 "score_snapshots": len(score_series),
                 "first_score": score_first.total_score if score_first else None,
                 "latest_score": score_latest.total_score if score_latest else None,

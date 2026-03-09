@@ -100,6 +100,8 @@ def get_scored_clusters(
     db: Session,
     *,
     recommendation: str | None = None,
+    source_name: str | None = None,
+    query: str | None = None,
     limit: int | None = None,
 ) -> list[dict]:
     stmt = (
@@ -156,6 +158,22 @@ def get_scored_clusters(
             if str(row.get("recommendation", "")).strip().lower() == recommendation
         ]
 
+    if source_name:
+        normalized_source_name = source_name.strip().lower()
+        results = [
+            row
+            for row in results
+            if str(row.get("source_name", "")).strip().lower() == normalized_source_name
+        ]
+
+    if query:
+        normalized_query = query.strip().lower()
+        results = [
+            row
+            for row in results
+            if str(row.get("query", "")).strip().lower() == normalized_query
+        ]
+
     if limit is not None:
         results = results[:limit]
 
@@ -166,9 +184,17 @@ def get_score_summary(
     db: Session,
     *,
     recommendation: str | None = None,
+    source_name: str | None = None,
+    query: str | None = None,
     limit: int | None = None,
 ) -> list[dict]:
-    return get_scored_clusters(db, recommendation=recommendation, limit=limit)
+    return get_scored_clusters(
+        db,
+        recommendation=recommendation,
+        source_name=source_name,
+        query=query,
+        limit=limit,
+    )
 
 
 def count_cluster_scores(db: Session) -> int:

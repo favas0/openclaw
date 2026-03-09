@@ -98,6 +98,8 @@ Trend reporting is query-aware at the market snapshot layer. Market series are i
 
 Score snapshots are also now stamped with `source_name` and `query`, so recommendation and score movement can be interpreted against the correct market series instead of only the raw cluster id.
 
+Snapshot capture also backfills continuity for missing clusters within the active query series. When a cluster disappears from the latest run, OpenClaw writes a zero-listing market snapshot and a placeholder score snapshot for that series so later trend reports can distinguish disappearance, reappearance, sparse evidence, and missing score coverage.
+
 ## Source Architecture
 
 OpenClaw intentionally does not use a generic multi-provider `collect` command.

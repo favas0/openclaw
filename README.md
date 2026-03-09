@@ -96,6 +96,7 @@ Filter trend output by query and ranking mode when reviewing a specific market:
 ```bash
 docker compose run --rm openclaw python -m app.cli trend-report --query "walking pad" --source-name ebay --sort-by new-items --limit 20
 docker compose run --rm openclaw python -m app.cli trend-report --query "walking pad" --sort-by recommendation-change --recommendation-changed-only --min-market-snapshots 2 --limit 20
+docker compose run --rm openclaw python -m app.cli trend-report --query "walking pad" --sort-by coverage --series-status disappeared --score-coverage-status market_absent --limit 20
 ```
 
 If you already have a database, rerun `initdb` after pulling schema updates so additive tables and columns such as `cluster_market_snapshots`, structured research breakdowns, and query-aware score snapshots are created.

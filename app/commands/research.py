@@ -15,6 +15,7 @@ def register_research_commands(app: typer.Typer) -> None:
         "score",
         "price",
         "new-items",
+        "coverage",
         "recommendation-change",
         "stable-supply-price",
     )
@@ -58,7 +59,7 @@ def register_research_commands(app: typer.Typer) -> None:
         sort_by: str = typer.Option(
             "movement",
             "--sort-by",
-            help="Sort mode: movement | score | price | new-items | recommendation-change | stable-supply-price",
+            help="Sort mode: movement | score | price | new-items | coverage | recommendation-change | stable-supply-price",
         ),
         min_market_snapshots: int = typer.Option(
             1,
@@ -70,6 +71,16 @@ def register_research_commands(app: typer.Typer) -> None:
             False,
             "--recommendation-changed-only",
             help="Only include rows where recommendation changed between first and latest score snapshot",
+        ),
+        series_status: str | None = typer.Option(
+            None,
+            "--series-status",
+            help="Optional filter: new | active | sparse | disappeared | reappeared",
+        ),
+        score_coverage_status: str | None = typer.Option(
+            None,
+            "--score-coverage-status",
+            help="Optional filter: scored | market_only | market_absent",
         ),
     ):
         sort_by = sort_by.strip().lower()
@@ -87,6 +98,8 @@ def register_research_commands(app: typer.Typer) -> None:
                 sort_by=sort_by,
                 min_market_snapshots=min_market_snapshots,
                 recommendation_changed_only=recommendation_changed_only,
+                series_status=series_status,
+                score_coverage_status=score_coverage_status,
             )
         print_json(
             {
@@ -97,6 +110,8 @@ def register_research_commands(app: typer.Typer) -> None:
                     "sort_by": sort_by,
                     "min_market_snapshots": min_market_snapshots,
                     "recommendation_changed_only": recommendation_changed_only,
+                    "series_status": series_status,
+                    "score_coverage_status": score_coverage_status,
                     "limit": limit,
                 },
                 "trends": rows,

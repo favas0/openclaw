@@ -28,6 +28,20 @@ STOPWORDS = {
     "display",
     "quiet",
     "portable",
+    "amazon",
+    "amazonchoice",
+    "amazonbasics",
+    "prime",
+    "sponsored",
+    "renewed",
+    "official",
+    "store",
+    "visit",
+    "brand",
+    "bundle",
+    "pack",
+    "edition",
+    "asin",
 }
 
 BRAND_RISK_TERMS = {
@@ -57,7 +71,20 @@ TOKEN_REPLACEMENTS = {
     "sit stand": "sitstand",
     "2 in 1": "2in1",
     "l shaped": "lshaped",
+    "amazon basics": "amazonbasics",
+    "amazon choice": "amazonchoice",
 }
+
+ASIN_RE = re.compile(r"^b0[a-z0-9]{8,}$")
+QUANTITY_RE = re.compile(r"^(?:\d+pack|packof\d+|\d+count|\d+ct|\d+pcs?|\d+pk)$")
+
+
+def is_noise_token(token: str) -> bool:
+    if ASIN_RE.match(token):
+        return True
+    if QUANTITY_RE.match(token):
+        return True
+    return False
 
 
 def normalize_title(title: str) -> str:
@@ -82,6 +109,8 @@ def tokenize_title(title: str) -> list[str]:
         if len(token) <= 1:
             continue
         if token.isdigit():
+            continue
+        if is_noise_token(token):
             continue
         clean_tokens.append(token)
 

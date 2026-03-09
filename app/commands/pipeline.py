@@ -25,11 +25,109 @@ from app.enrichment.cluster_enricher import ClusterEnricher
 from app.normalize.processor import normalize_raw_listing
 from app.research.signals import build_research_signal
 from app.scoring.cluster_scoring import score_cluster
+from app.sources.amazon import get_demo_items as get_amazon_demo_items
+from app.sources.amazon import map_demo_item_to_raw_listing as map_amazon_demo_item_to_raw_listing
 from app.sources.ebay import get_demo_items, map_demo_item_to_raw_listing
 from app.sources.ebay_api import EbayBrowseApiClient, extract_item_summaries, map_api_item_to_raw_listing
 
 
 def register_pipeline_commands(app: typer.Typer) -> None:
+    @app.command("collect-amazon")
+    def collect_amazon(
+        query: str = typer.Argument(..., help="Search query, e.g. 'standing desk'"),
+        limit: int = typer.Option(20, "--limit", "-l", min=1, max=100),
+        use_demo: bool = typer.Option(
+            True,
+            "--demo/--no-demo",
+            help="Use built-in Amazon scout demo data (only mode available today)",
+        ),
+    ):
+        if not use_demo:
+            raise typer.BadParameter("Amazon scout currently supports --demo only")
+
+        with SessionLocal() as db:
+            run = create_ingestion_run(
+                db,
+                source_name="amazon",
+                query=query,
+                status="started",
+            )
+
+            try:
+                items = get_amazon_demo_items(query)[:limit]
+                inserted = 0
+                duplicates_skipped = 0
+
+                for item in items:
+                    mapped = map_amazon_demo_item_to_raw_listing(item, query=query)
+                    existing = find_existing_raw_listing_in_run(
+                        db,
+                        run_id=run.id,
+                        source_name=mapped["source_name"],
+                        external_id=mapped.get("external_id"),
+                        item_url=mapped.get("item_url"),
+                        title=mapped.get("title"),
+                        seller_name=mapped.get("seller_name"),
+                    )
+                    if existing:
+                        duplicates_skipped += 1
+                        continue
+
+                    insert_raw_listing(
+                        db,
+                        run_id=run.id,
+                        source_name=mapped["source_name"],
+                        query=mapped["query"],
+                        title=mapped["title"],
+                        item_url=mapped["item_url"],
+                        external_id=mapped["external_id"],
+                        price=mapped["price"],
+                        shipping_cost=mapped["shipping_cost"],
+                        currency=mapped["currency"],
+                        seller_name=mapped["seller_name"],
+                        seller_url=mapped["seller_url"],
+                        image_url=mapped["image_url"],
+                        category=mapped["category"],
+                        condition=mapped["condition"],
+                        is_sold_signal=mapped["is_sold_signal"],
+                        raw_payload=mapped["raw_payload"],
+                        auto_commit=False,
+                    )
+                    inserted += 1
+
+                db.commit()
+
+                finish_ingestion_run(
+                    db,
+                    run_id=run.id,
+                    status="completed",
+                    listings_found=inserted,
+                    notes=f"Amazon scout demo mode used; duplicates_skipped={duplicates_skipped}",
+                    auto_commit=True,
+                )
+
+                print_json(
+                    {
+                        "status": "completed",
+                        "query": query,
+                        "inserted": inserted,
+                        "duplicates_skipped": duplicates_skipped,
+                        "mode": "demo",
+                        "source_name": "amazon",
+                        "notes": "Amazon scout demo mode used",
+                    }
+                )
+            except Exception as exc:
+                db.rollback()
+                finish_ingestion_run(
+                    db,
+                    run_id=run.id,
+                    status="failed",
+                    listings_found=0,
+                    notes=str(exc),
+                )
+                raise typer.Exit(code=1) from exc
+
     @app.command("collect-ebay")
     def collect_ebay(
         query: str = typer.Argument(..., help="Search query, e.g. 'walking pad'"),

@@ -9,6 +9,7 @@ OpenClaw is not a storefront, order system, or auto-publisher. It is a research 
 ## What OpenClaw Can Do
 
 - Collect eBay listing data in demo mode or through the official eBay Browse API
+- Collect Amazon scout listing data through a separate demo-only command
 - Normalize raw listing titles into cleaner comparable forms
 - Cluster similar listings into product groups
 - Enrich clusters with structured product intelligence using Ollama
@@ -18,8 +19,9 @@ OpenClaw is not a storefront, order system, or auto-publisher. It is a research 
 
 ## Current Limits
 
-- Only eBay is a real source today
-- Amazon, Etsy, and TikTok collectors do not exist yet
+- Only eBay has a live API-backed source today
+- Amazon now exists as a source-specific demo scout path, not a live API integration
+- Etsy and TikTok collectors do not exist yet
 - Supplier intelligence and competitor intelligence are heuristic, not live API-backed
 - Trend monitoring depends on repeated ingestion and snapshot runs
 - LLM enrichment improves context, but ranking remains partly heuristic and should be reviewed by a human
@@ -103,6 +105,18 @@ Default behavior:
 
 - if eBay credentials are configured, OpenClaw uses the official API
 - if eBay credentials are missing, OpenClaw uses demo data
+
+Amazon scout demo mode:
+
+```bash
+docker compose run --rm openclaw python -m app.cli collect-amazon "standing desk" --demo --limit 10
+```
+
+Amazon notes:
+
+- `collect-amazon` is separate from `collect-ebay`
+- it currently supports demo mode only
+- it exists to exercise a second source path without changing the downstream pipeline
 
 ### 2. Normalize Listings
 
@@ -190,6 +204,13 @@ Export shortlist:
 
 ```bash
 docker compose run --rm openclaw python -m app.cli export-shortlist --format both
+```
+
+Export a review pack:
+
+```bash
+docker compose run --rm openclaw python -m app.cli export-review-pack --query "walking pad" --source-name ebay --format both --limit 10
+docker compose run --rm openclaw python -m app.cli export-review-pack --query "standing desk" --source-name amazon --format both --limit 10
 ```
 
 ## Trend Workflow
@@ -294,6 +315,13 @@ Comparison rows now include structured supplier and competitor sub-scores in add
 - `mode`: `demo` or `api`
 - `marketplace_id`: active eBay marketplace
 
+`collect-amazon` returns:
+
+- `inserted`: number of raw listings written
+- `duplicates_skipped`: duplicate listings ignored within the same run
+- `mode`: currently always `demo`
+- `source_name`: `amazon`
+
 ### Clusters
 
 The cluster output is useful when:
@@ -321,6 +349,15 @@ These do not replace the main score. They add directional context around:
 - cross-market potential
 - trend suitability
 
+### Review Pack
+
+`export-review-pack` creates a handoff-oriented artifact that combines:
+
+- core economics and recommendation
+- supplier and competitor sub-signals
+- latest trend status and coverage fields
+- a compact deterministic review summary per row
+
 ## Troubleshooting
 
 ### `doctor` says eBay credentials are missing
@@ -339,6 +376,10 @@ Check:
 - `EBAY_ENV` matches the key type you have
 - outbound network access is available from the container
 - the marketplace ID is valid, usually `EBAY_GB`
+
+### `collect-amazon` is not live
+
+That is expected today. The Amazon path is a source-specific scout command with built-in demo data, not a live API integration.
 
 ### `enrich-clusters` fails
 

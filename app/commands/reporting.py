@@ -5,7 +5,13 @@ import typer
 from app.commands.shared import explain_row, print_json, shortlist_rows
 from app.config import settings
 from app.db.database import SessionLocal
-from app.db.repo import get_cluster_comparison_rows, get_reporting_summary
+from app.db.repo import get_cluster_comparison_rows, get_cluster_trends, get_reporting_summary
+from app.reporting.review_pack import (
+    build_review_pack_rows,
+    slugify,
+    write_review_pack_csv,
+    write_review_pack_markdown,
+)
 from app.reporting.rankings import write_ranked_csv, write_ranked_markdown
 
 
@@ -69,7 +75,7 @@ def register_reporting_commands(app: typer.Typer) -> None:
             help="Minimum max CPA",
         ),
         min_listings: int = typer.Option(
-            2,
+            1,
             "--min-listings",
             help="Minimum listing count",
         ),
@@ -216,7 +222,7 @@ def register_reporting_commands(app: typer.Typer) -> None:
             help="Minimum max CPA",
         ),
         min_listings: int = typer.Option(
-            2,
+            1,
             "--min-listings",
             help="Minimum listing count",
         ),
@@ -357,5 +363,130 @@ def register_reporting_commands(app: typer.Typer) -> None:
                 "count": len(rows),
                 "cluster_ids": unique_ids,
                 "comparison": rows,
+            }
+        )
+
+    @app.command("export-review-pack")
+    def export_review_pack(
+        query: str | None = typer.Option(
+            None,
+            "--query",
+            help="Optional exact query filter, e.g. 'walking pad'",
+        ),
+        source_name: str | None = typer.Option(
+            None,
+            "--source-name",
+            help="Optional source filter, e.g. 'ebay' or 'amazon'",
+        ),
+        recommendation: str | None = typer.Option(
+            None,
+            "--recommendation",
+            "-r",
+            help="Optional recommendation filter, e.g. watch / test",
+        ),
+        limit: int = typer.Option(
+            10,
+            "--limit",
+            "-l",
+            min=1,
+            max=100,
+            help="Maximum rows to include in the review pack",
+        ),
+        min_profit: float = typer.Option(
+            60.0,
+            "--min-profit",
+            help="Minimum gross profit estimate",
+        ),
+        min_cpa: float = typer.Option(
+            30.0,
+            "--min-cpa",
+            help="Minimum max CPA",
+        ),
+        min_listings: int = typer.Option(
+            1,
+            "--min-listings",
+            help="Minimum listing count",
+        ),
+        min_market_snapshots: int = typer.Option(
+            1,
+            "--min-market-snapshots",
+            min=1,
+            help="Minimum market snapshots required for trend context",
+        ),
+        fmt: str = typer.Option(
+            "both",
+            "--format",
+            "-f",
+            help="csv | md | both",
+        ),
+    ):
+        fmt = fmt.strip().lower()
+        if fmt not in {"csv", "md", "both"}:
+            raise typer.BadParameter("format must be one of: csv, md, both")
+
+        with SessionLocal() as db:
+            rows = get_reporting_summary(
+                db,
+                recommendation=recommendation,
+                source_name=source_name,
+                query=query,
+                limit=None,
+            )
+            trend_rows = get_cluster_trends(
+                db,
+                limit=max(len(rows), 1) * 5,
+                source_name=source_name,
+                query=query,
+                sort_by="coverage",
+                min_market_snapshots=min_market_snapshots,
+            )
+
+        filtered = shortlist_rows(
+            rows=rows,
+            min_profit=min_profit,
+            min_cpa=min_cpa,
+            min_listings=min_listings,
+            limit=limit,
+        )
+        review_pack_rows = build_review_pack_rows(filtered, trend_rows)
+
+        reports_dir = Path(settings.openclaw_data_dir) / "reports"
+        query_suffix = slugify(query, fallback="all")
+        source_suffix = slugify(source_name, fallback="all")
+        rec_suffix = recommendation.strip().lower() if recommendation else "all"
+        file_stem = (
+            f"review_pack_{source_suffix}_{query_suffix}_{rec_suffix}"
+            f"_profit{int(min_profit)}"
+            f"_cpa{int(min_cpa)}"
+            f"_listings{min_listings}"
+            f"_top{limit}"
+        )
+
+        written: list[str] = []
+        if fmt in {"csv", "both"}:
+            csv_path = reports_dir / f"{file_stem}.csv"
+            write_review_pack_csv(csv_path, review_pack_rows)
+            written.append(str(csv_path))
+
+        if fmt in {"md", "both"}:
+            md_path = reports_dir / f"{file_stem}.md"
+            write_review_pack_markdown(md_path, review_pack_rows)
+            written.append(str(md_path))
+
+        print_json(
+            {
+                "status": "completed",
+                "exported_count": len(review_pack_rows),
+                "filters": {
+                    "query": query,
+                    "source_name": source_name,
+                    "recommendation": recommendation,
+                    "min_profit": min_profit,
+                    "min_cpa": min_cpa,
+                    "min_listings": min_listings,
+                    "min_market_snapshots": min_market_snapshots,
+                    "limit": limit,
+                },
+                "files": written,
             }
         )

@@ -37,6 +37,17 @@ docker compose run --rm openclaw python -m app.cli score-products
 docker compose run --rm openclaw python -m app.cli top-products --limit 10
 ```
 
+For new source-path work, also run a source-specific smoke flow such as:
+
+```bash
+docker compose run --rm openclaw python -m app.cli initdb
+docker compose run --rm openclaw python -m app.cli collect-amazon "standing desk" --demo --limit 5
+docker compose run --rm openclaw python -m app.cli normalize-listings
+docker compose run --rm openclaw python -m app.cli cluster-products
+docker compose run --rm openclaw python -m app.cli score-products
+docker compose run --rm openclaw python -m app.cli export-review-pack --query "standing desk" --source-name amazon --format csv --limit 10
+```
+
 ## Source Integration Pattern
 
 When adding a new marketplace:
@@ -84,9 +95,11 @@ If schema changes become frequent or more invasive, add a migration tool later. 
 Prefer small, targeted tests around:
 
 - source mapping
+- normalization noise handling
 - dedupe behavior
 - trend snapshot logic
 - scoring edge cases
+- export row shape
 
 Avoid writing broad integration tests first when a focused unit test would catch the regression more cheaply.
 

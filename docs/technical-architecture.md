@@ -50,10 +50,15 @@ Current real source support is eBay.
 
 - demo source mapping lives in [app/sources/ebay.py](/home/favas/projects/openclaw/app/sources/ebay.py)
 - official eBay Browse API integration lives in [app/sources/ebay_api.py](/home/favas/projects/openclaw/app/sources/ebay_api.py)
+- Amazon scout demo mapping lives in [app/sources/amazon.py](/home/favas/projects/openclaw/app/sources/amazon.py)
 
 The collector command is eBay-specific by design:
 
 - `collect-ebay`
+
+Additional source-specific scout path:
+
+- `collect-amazon`
 
 The collector writes shared `raw_listings` records so downstream stages remain source-agnostic.
 
@@ -109,10 +114,11 @@ Current pattern:
 - `collect-ebay` command
 - `app/sources/ebay.py`
 - `app/sources/ebay_api.py`
+- `collect-amazon` command
+- `app/sources/amazon.py`
 
 Expected future pattern:
 
-- `collect-amazon`
 - `collect-etsy`
 - `collect-tiktok`
 
@@ -173,6 +179,7 @@ The current architecture deliberately preserves:
 
 - no migration framework yet; additive schema changes rely on rerunning `initdb`
 - only eBay is implemented as a collection source
+- Amazon exists as a demo-only scout source, not a live marketplace integration yet
 - no scheduler built into the app
 - trend monitoring is manual unless an external scheduler invokes commands
 - supplier and competitor signals are still heuristic

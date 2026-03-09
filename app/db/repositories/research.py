@@ -118,9 +118,17 @@ def get_reporting_summary(
     db: Session,
     *,
     recommendation: str | None = None,
+    source_name: str | None = None,
+    query: str | None = None,
     limit: int | None = None,
 ) -> list[dict]:
-    scored_rows = get_scored_clusters(db, recommendation=recommendation, limit=None)
+    scored_rows = get_scored_clusters(
+        db,
+        recommendation=recommendation,
+        source_name=source_name,
+        query=query,
+        limit=None,
+    )
     signal_rows = {row["cluster_id"]: row for row in get_research_signal_summary(db, limit=None)}
 
     results = [{**row, **signal_rows.get(row["cluster_id"], {})} for row in scored_rows]

@@ -22,6 +22,25 @@ Expected outcome:
 - commands complete without errors
 - `top-products` returns at least one scored cluster
 
+## Workflow 1A: Amazon Scout Smoke Flow
+
+Use this to validate the second source path without touching the eBay collector design.
+
+```bash
+docker compose run --rm openclaw python -m app.cli initdb
+docker compose run --rm openclaw python -m app.cli collect-amazon "standing desk" --demo --limit 5
+docker compose run --rm openclaw python -m app.cli normalize-listings
+docker compose run --rm openclaw python -m app.cli cluster-products
+docker compose run --rm openclaw python -m app.cli score-products
+docker compose run --rm openclaw python -m app.cli export-review-pack --query "standing desk" --source-name amazon --format both --limit 10
+```
+
+Use this when you want to confirm:
+
+- the Amazon scout source maps into the shared raw listing shape
+- normalization still clusters the second-source titles sensibly
+- the review-pack export works for a filtered source/query slice
+
 ## Workflow 2: Live eBay Research Run
 
 Use this once eBay API credentials are configured.
@@ -145,6 +164,13 @@ Files are written under:
 
 Use this when you want a handoff artifact for manual product review.
 
+For a richer handoff artifact, export a review pack:
+
+```bash
+docker compose run --rm openclaw python -m app.cli export-review-pack --query "walking pad" --source-name ebay --format both --limit 10
+docker compose run --rm openclaw python -m app.cli export-review-pack --query "standing desk" --source-name amazon --format both --limit 10
+```
+
 ## Workflow 6: Inspect System Health
 
 ```bash
@@ -163,3 +189,4 @@ Use this when troubleshooting, validating a deployment, or checking whether the 
 - `enrich-clusters` requires Ollama availability
 - `trend-report` becomes meaningful only after multiple snapshots
 - `collect-ebay` stays eBay-specific by design; future sources should get separate commands
+- `collect-amazon` is a separate scout command and currently demo-only by design

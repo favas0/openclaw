@@ -55,6 +55,16 @@ docker compose run --rm openclaw python -m app.cli research-signals
 docker compose run --rm openclaw python -m app.cli top-products --limit 10
 ```
 
+Run the Amazon scout demo path:
+
+```bash
+docker compose run --rm openclaw python -m app.cli collect-amazon "standing desk" --demo --limit 5
+docker compose run --rm openclaw python -m app.cli normalize-listings
+docker compose run --rm openclaw python -m app.cli cluster-products
+docker compose run --rm openclaw python -m app.cli score-products
+docker compose run --rm openclaw python -m app.cli export-review-pack --query "standing desk" --source-name amazon --format both --limit 10
+```
+
 ## eBay API Usage
 
 Once credentials are configured in `~/.config/openclaw/.env`:
@@ -76,6 +86,14 @@ Legacy aliases also work:
 
 - `EBAY_APP_ID`
 - `EBAY_CERT_ID`
+
+## Amazon Scout
+
+OpenClaw now includes a separate `collect-amazon` command as a source-specific scout path.
+
+- It is intentionally separate from `collect-ebay`
+- It currently uses built-in demo data only
+- eBay remains the only live API-backed source today
 
 ## Trend Monitoring
 

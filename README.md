@@ -22,3 +22,6 @@ docker compose run --rm openclaw python -m app.cli snapshot-trends
 docker compose run --rm openclaw python -m app.cli trend-report --limit 20
 
 If you already have a database, re-run `initdb` once after pulling schema updates so additive tables like `cluster_market_snapshots` are created.
+
+## Tests
+docker compose run --rm openclaw python -m unittest discover -s tests -v

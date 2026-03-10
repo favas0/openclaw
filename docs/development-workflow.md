@@ -26,6 +26,14 @@ docker compose run --rm openclaw python -m unittest discover -s tests -v
 docker compose run --rm openclaw python -m app.cli doctor
 ```
 
+For web-shell changes, also validate startup and a basic route smoke check:
+
+```bash
+docker compose run --rm openclaw python -m app.cli serve-web --help
+curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8000/review
+```
+
 For pipeline-affecting changes, run a smoke flow such as:
 
 ```bash
@@ -110,6 +118,7 @@ When behavior changes:
 - update the operator docs if command usage changes
 - update the technical docs if architecture, schema, or extension points change
 - update the README if setup or quickstart flow changes
+- update approval-facing URLs and web-shell environment variables when the web surface changes
 
 ## Release/Handoff Rule
 

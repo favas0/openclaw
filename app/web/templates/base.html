@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ page_title }} | {{ app_name }}</title>
+    <style>
+      :root {
+        --ink: #14213d;
+        --ink-soft: #42506b;
+        --paper: #f7f4ea;
+        --paper-strong: #fffdf7;
+        --accent: #e76f51;
+        --accent-deep: #c8553d;
+        --line: rgba(20, 33, 61, 0.14);
+        --highlight: #f4a261;
+        --shadow: 0 18px 40px rgba(20, 33, 61, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(244, 162, 97, 0.24), transparent 28%),
+          radial-gradient(circle at top right, rgba(231, 111, 81, 0.18), transparent 26%),
+          linear-gradient(180deg, #fbf8ef 0%, #f2eee3 100%);
+      }
+
+      a {
+        color: var(--accent-deep);
+      }
+
+      .shell {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      .nav,
+      .hero,
+      .panel,
+      .footer {
+        background: rgba(255, 253, 247, 0.88);
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(8px);
+      }
+
+      .nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 18px 22px;
+        border-radius: 18px;
+      }
+
+      .brand {
+        font-size: 1.2rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .nav-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+      }
+
+      .nav-links a {
+        text-decoration: none;
+        font-size: 0.95rem;
+      }
+
+      .hero {
+        margin-top: 24px;
+        padding: 34px;
+        border-radius: 28px;
+      }
+
+      .hero h1,
+      .panel h2,
+      .panel h3 {
+        margin-top: 0;
+      }
+
+      .lede {
+        max-width: 760px;
+        font-size: 1.1rem;
+        line-height: 1.65;
+        color: var(--ink-soft);
+      }
+
+      .cta-row,
+      .grid {
+        display: grid;
+        gap: 18px;
+      }
+
+      .cta-row {
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        margin-top: 24px;
+      }
+
+      .grid {
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      }
+
+      .panel {
+        margin-top: 24px;
+        padding: 24px;
+        border-radius: 22px;
+      }
+
+      .metric {
+        padding: 16px;
+        border-radius: 16px;
+        background: linear-gradient(180deg, rgba(244, 162, 97, 0.12), rgba(255, 255, 255, 0.6));
+        border: 1px solid rgba(231, 111, 81, 0.18);
+      }
+
+      .metric strong {
+        display: block;
+        font-size: 1.8rem;
+        margin-top: 6px;
+      }
+
+      .pill {
+        display: inline-block;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(231, 111, 81, 0.12);
+        border: 1px solid rgba(231, 111, 81, 0.2);
+        font-size: 0.84rem;
+      }
+
+      ul.clean {
+        padding-left: 18px;
+        line-height: 1.7;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        padding: 12px 10px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      .footer {
+        margin: 24px 0 8px;
+        padding: 20px 24px;
+        border-radius: 18px;
+        color: var(--ink-soft);
+      }
+
+      code {
+        padding: 2px 6px;
+        border-radius: 6px;
+        background: rgba(20, 33, 61, 0.08);
+      }
+
+      @media (max-width: 720px) {
+        .shell {
+          padding: 16px;
+        }
+
+        .nav {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .hero,
+        .panel {
+          padding: 22px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <nav class="nav">
+        <div class="brand">{{ app_name }}</div>
+        <div class="nav-links">
+          {% for item in nav_items %}
+          <a href="{{ item.href }}">{{ item.label }}</a>
+          {% endfor %}
+        </div>
+      </nav>
+
+      {% block content %}{% endblock %}
+
+      <footer class="footer">
+        <div>{{ app_name }} remains CLI-first. This web shell exists for approval, support, callbacks, and lightweight reviewer access.</div>
+        <div style="margin-top: 8px;">Support: <a href="{{ support_mailto }}">{{ support_email }}</a></div>
+      </footer>
+    </main>
+  </body>
+</html>

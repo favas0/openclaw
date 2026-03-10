@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+  <span class="pill">Support</span>
+  <h1>Support and contact</h1>
+  <p class="lede">
+    OpenClaw support is intended for deployment questions, marketplace review coordination, and integration troubleshooting.
+  </p>
+</section>
+
+<section class="panel">
+  <h2>Contact</h2>
+  <p>Email: <a href="{{ support_mailto }}">{{ support_email }}</a></p>
+  <p>Base URL: <code>{{ base_url }}</code></p>
+</section>
+
+<section class="panel">
+  <h2>Useful reviewer URLs</h2>
+  <ul class="clean">
+    <li>Homepage: <code>{{ base_url }}/</code></li>
+    <li>Reviewer overview: <code>{{ base_url }}/review</code></li>
+    <li>Privacy policy: <code>{{ base_url }}/privacy</code></li>
+    <li>Terms of service: <code>{{ base_url }}/terms</code></li>
+    <li>Health check: <code>{{ base_url }}/health</code></li>
+    {% for route in oauth_routes %}
+    <li>{{ route.provider }} callback: <code>{{ route.url }}</code></li>
+    {% endfor %}
+  </ul>
+</section>
+
+<section class="panel">
+  <h2>Local startup</h2>
+  <p>CLI path:</p>
+  <p><code>python -m app.cli serve-web --host 0.0.0.0 --port 8000</code></p>
+  <p>Docker path:</p>
+  <p><code>docker compose run --rm --service-ports openclaw python -m app.cli serve-web --host 0.0.0.0 --port 8000</code></p>
+</section>
+{% endblock %}

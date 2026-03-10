@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     openclaw_data_dir: str = "/data"
     openclaw_db_path: str = "/data/db/openclaw.sqlite3"
 
+    web_host: str = "0.0.0.0"
+    web_port: int = 8000
+    web_base_url: str = "http://localhost:8000"
+    web_support_email: str = "support@openclaw.local"
+
     ebay_client_id: str = Field(
         default="",
         validation_alias=AliasChoices("EBAY_CLIENT_ID", "EBAY_APP_ID"),

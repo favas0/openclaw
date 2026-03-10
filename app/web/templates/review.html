@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+  <span class="pill">Reviewer Overview</span>
+  <h1>Thin reviewer-facing view for marketplace app review</h1>
+  <p class="lede">
+    This page exists to give marketplace reviewers a credible, inspectable surface without changing the CLI-first
+    architecture. It shows the product purpose, callback URLs, and a lightweight summary of local pipeline outputs when available.
+  </p>
+</section>
+
+<section class="panel">
+  <h2>Product scope</h2>
+  <div class="grid">
+    <div>
+      <h3>Current sources</h3>
+      <ul class="clean">
+        <li>eBay live API integration</li>
+        <li>Amazon scout demo path</li>
+        <li>Etsy and TikTok callback support for approval and future integrations</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Core outputs</h3>
+      <ul class="clean">
+        <li>Ranked product opportunities</li>
+        <li>Trend monitoring snapshots</li>
+        <li>Supplier and competitor intelligence signals</li>
+        <li>Exportable review packs</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Callback URLs</h3>
+      <ul class="clean">
+        {% for route in oauth_routes %}
+        <li>{{ route.provider }}: <code>{{ route.url }}</code></li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Local data snapshot</h2>
+  <p>{{ review_data.message }}</p>
+  {% if review_data.stats %}
+  <div class="grid">
+    {% for stat in review_data.stats %}
+    <div class="metric">
+      <div>{{ stat.label }}</div>
+      <strong>{{ stat.value }}</strong>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <h2>Recent ranked opportunities</h2>
+  {% if review_data.top_products %}
+  <table>
+    <thead>
+      <tr>
+        <th>Cluster</th>
+        <th>Source</th>
+        <th>Recommendation</th>
+        <th>Total score</th>
+        <th>Gross profit</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in review_data.top_products %}
+      <tr>
+        <td>{{ row.cluster_title }}</td>
+        <td>{{ row.source_name }}</td>
+        <td>{{ row.recommendation }}</td>
+        <td>{{ row.total_score }}</td>
+        <td>{{ row.gross_profit_estimate }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>No reviewer demo rows are available yet. Populate the database through the existing CLI pipeline to display real examples here.</p>
+  {% endif %}
+</section>
+{% endblock %}

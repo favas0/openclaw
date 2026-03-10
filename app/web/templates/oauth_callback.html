@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+  <span class="pill">OAuth Callback</span>
+  <h1>{{ provider_name }} callback endpoint</h1>
+  <p class="lede">
+    This endpoint is available for marketplace review and OAuth redirect validation. It is a thin callback surface layered onto the main OpenClaw application.
+  </p>
+</section>
+
+<section class="panel">
+  <h2>Callback status</h2>
+  <ul class="clean">
+    <li>Provider: {{ provider_name }}</li>
+    <li>Status: {{ callback_status }}</li>
+    <li>Authorization code present: {{ "yes" if code_present else "no" }}</li>
+    <li>State: {{ state or "not provided" }}</li>
+    <li>Error: {{ error or "none" }}</li>
+  </ul>
+</section>
+{% endblock %}

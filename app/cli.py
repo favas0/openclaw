@@ -5,6 +5,7 @@ from app.commands import (
     register_reporting_commands,
     register_research_commands,
     register_system_commands,
+    register_web_commands,
 )
 
 app = typer.Typer(
@@ -18,6 +19,7 @@ register_system_commands(app)
 register_pipeline_commands(app)
 register_reporting_commands(app)
 register_research_commands(app)
+register_web_commands(app)
 
 
 if __name__ == "__main__":

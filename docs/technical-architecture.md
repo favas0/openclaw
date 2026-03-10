@@ -10,6 +10,7 @@ It intentionally keeps the stack light:
 - SQLite database
 - Docker-friendly local runtime
 - Ollama for local LLM enrichment
+- optional FastAPI web shell
 - no microservices
 - no queueing layer
 - no remote orchestrator
@@ -23,6 +24,7 @@ Runs the CLI commands and accesses:
 - source ingestion code
 - normalization and clustering logic
 - scoring and reporting logic
+- optional FastAPI web shell routes
 - SQLite database mounted under `/data`
 
 ### `ollama` container
@@ -41,6 +43,36 @@ It registers command groups from:
 - [app/commands/pipeline.py](/home/favas/projects/openclaw/app/commands/pipeline.py)
 - [app/commands/reporting.py](/home/favas/projects/openclaw/app/commands/reporting.py)
 - [app/commands/research.py](/home/favas/projects/openclaw/app/commands/research.py)
+- [app/commands/web.py](/home/favas/projects/openclaw/app/commands/web.py)
+
+## Optional Web Shell
+
+The web shell lives under [app/web/](/home/favas/projects/openclaw/app/web/__init__.py) and is intentionally thin.
+
+Purpose:
+
+- provide a legitimate product-facing website surface
+- host privacy, terms, and support pages
+- expose approval-ready OAuth callback URLs
+- offer a minimal reviewer/demo page backed by the existing SQLite data when available
+
+Design constraints:
+
+- it does not replace the CLI workflow
+- it does not introduce a separate service boundary in the codebase
+- it shares the existing settings model and database
+- it is safe to run with an empty database
+
+Primary pieces:
+
+- [app/web/app.py](/home/favas/projects/openclaw/app/web/app.py)
+- [app/web/templates/base.html](/home/favas/projects/openclaw/app/web/templates/base.html)
+- [app/web/templates/home.html](/home/favas/projects/openclaw/app/web/templates/home.html)
+- [app/web/templates/review.html](/home/favas/projects/openclaw/app/web/templates/review.html)
+
+The CLI starts it through:
+
+- `python -m app.cli serve-web`
 
 ## Pipeline Stages
 
@@ -156,6 +188,7 @@ Notable configuration:
 
 - Ollama base URL and model
 - data directory and SQLite path
+- web host, port, base URL, and support email
 - eBay credentials and marketplace defaults
 
 eBay credentials support both canonical and legacy names:
@@ -170,6 +203,7 @@ The current architecture deliberately preserves:
 - SQLite
 - CLI-driven workflow
 - Docker-friendly local development
+- a thin optional web shell instead of a web-first rewrite
 - modular Python package layout
 - deterministic downstream scoring
 - source-specific integration modules

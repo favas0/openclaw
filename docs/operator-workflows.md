@@ -183,6 +183,32 @@ docker compose run --rm openclaw python -m app.cli show-signals --limit 20
 
 Use this when troubleshooting, validating a deployment, or checking whether the last research run completed correctly.
 
+## Workflow 7: Run The Optional Web Shell
+
+Use this when you need approval-friendly pages, callback URLs, or a reviewer-facing surface.
+
+```bash
+docker compose run --rm --service-ports openclaw python -m app.cli serve-web --host 0.0.0.0 --port 8000
+```
+
+Reviewer URLs:
+
+- `http://localhost:8000/`
+- `http://localhost:8000/review`
+- `http://localhost:8000/privacy`
+- `http://localhost:8000/terms`
+- `http://localhost:8000/support`
+- `http://localhost:8000/health`
+- `http://localhost:8000/oauth/etsy/callback`
+- `http://localhost:8000/oauth/tiktok/callback`
+
+Use this workflow when:
+
+- submitting or refreshing Etsy app approval materials
+- supporting TikTok developer review
+- verifying callback URLs and base website presence
+- giving reviewers a small, read-only product surface without exposing the full CLI workflow
+
 ## Workflow Notes
 
 - The intended order is still collect -> normalize -> cluster -> enrich -> score -> research signals -> report
@@ -190,3 +216,4 @@ Use this when troubleshooting, validating a deployment, or checking whether the 
 - `trend-report` becomes meaningful only after multiple snapshots
 - `collect-ebay` stays eBay-specific by design; future sources should get separate commands
 - `collect-amazon` is a separate scout command and currently demo-only by design
+- `serve-web` is optional and thin by design; it should not become a replacement for the CLI pipeline

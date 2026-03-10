@@ -8,6 +8,7 @@ The stack is intentionally light:
 - SQLite database
 - Docker-friendly local runtime
 - Ollama for local enrichment
+- Optional FastAPI web shell for approvals, policies, callbacks, and reviewer access
 
 ## Documentation
 
@@ -41,6 +42,12 @@ Create database tables:
 
 ```bash
 docker compose run --rm openclaw python -m app.cli initdb
+```
+
+Start the optional web shell:
+
+```bash
+docker compose run --rm --service-ports openclaw python -m app.cli serve-web --host 0.0.0.0 --port 8000
 ```
 
 Run a demo pipeline:
@@ -95,6 +102,34 @@ OpenClaw now includes a separate `collect-amazon` command as a source-specific s
 - It currently uses built-in demo data only
 - eBay remains the only live API-backed source today
 
+## Optional Web Shell
+
+OpenClaw now includes a thin FastAPI-based web shell layered onto the CLI app.
+
+- It is optional and does not replace the CLI workflow
+- It uses the same codebase, config, and SQLite database
+- It exists for homepage, policy pages, support/contact, reviewer access, health checks, and OAuth callbacks
+
+Key routes:
+
+- `/`
+- `/review`
+- `/privacy`
+- `/terms`
+- `/support`
+- `/health`
+- `/oauth/etsy/callback`
+- `/oauth/tiktok/callback`
+
+Useful environment variables:
+
+```env
+WEB_HOST=0.0.0.0
+WEB_PORT=8000
+WEB_BASE_URL=http://localhost:8000
+WEB_SUPPORT_EMAIL=support@example.com
+```
+
 ## Trend Monitoring
 
 Capture a snapshot after a scoring run:
@@ -124,4 +159,5 @@ If you already have a database, rerun `initdb` after pulling schema updates so a
 ```bash
 python3 -m compileall app tests
 docker compose run --rm openclaw python -m unittest discover -s tests -v
+docker compose run --rm openclaw python -m app.cli serve-web --help
 ```

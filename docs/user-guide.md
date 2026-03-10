@@ -16,6 +16,7 @@ OpenClaw is not a storefront, order system, or auto-publisher. It is a research 
 - Score clusters with deterministic economics and research heuristics
 - Snapshot score and market trend data across repeated runs
 - Export ranked products and shortlists
+- Expose an optional web shell for approval pages, support URLs, health checks, and OAuth callbacks
 
 ## Current Limits
 
@@ -53,6 +54,10 @@ OLLAMA_MODEL=llama3.1:8b
 
 OPENCLAW_DATA_DIR=/data
 OPENCLAW_DB_PATH=/data/db/openclaw.sqlite3
+WEB_HOST=0.0.0.0
+WEB_PORT=8000
+WEB_BASE_URL=http://localhost:8000
+WEB_SUPPORT_EMAIL=support@example.com
 
 EBAY_CLIENT_ID=
 EBAY_CLIENT_SECRET=
@@ -84,6 +89,38 @@ docker compose run --rm openclaw python -m app.cli initdb
 ```
 
 If you already have a database and have pulled newer schema changes, run `initdb` again. It creates missing additive tables such as `cluster_market_snapshots` and newer additive columns used for structured research signals and query-aware score snapshots.
+
+## Optional Web Shell
+
+OpenClaw includes a thin FastAPI web shell for marketplace approval and reviewer access. It is not a rewrite of the product and does not replace the CLI workflow.
+
+Start it locally:
+
+```bash
+python -m app.cli serve-web --host 0.0.0.0 --port 8000
+```
+
+Start it through Docker:
+
+```bash
+docker compose run --rm --service-ports openclaw python -m app.cli serve-web --host 0.0.0.0 --port 8000
+```
+
+Key pages:
+
+- `/` product homepage
+- `/review` reviewer/demo overview
+- `/privacy` privacy policy
+- `/terms` terms of service
+- `/support` support and contact page
+- `/health` JSON health check
+- `/oauth/etsy/callback` Etsy callback URL
+- `/oauth/tiktok/callback` TikTok callback URL
+
+Reviewer notes:
+
+- the reviewer page can show real database-backed stats and ranked products when the CLI pipeline has already populated SQLite
+- if the database is empty or not mounted, the web shell still loads and explains the empty state cleanly
 
 ## Standard Research Workflow
 
@@ -304,6 +341,12 @@ docker compose run --rm openclaw python -m app.cli compare-products 1 2 3
 
 Comparison rows now include structured supplier and competitor sub-scores in addition to the main economics and scoring fields.
 
+Web shell startup:
+
+```bash
+python -m app.cli serve-web --host 0.0.0.0 --port 8000
+```
+
 ## How To Read The Outputs
 
 ### Ingestion
@@ -396,6 +439,15 @@ Run:
 ```bash
 docker compose run --rm openclaw python -m app.cli initdb
 ```
+
+### The web shell does not start
+
+Check:
+
+- FastAPI, Uvicorn, and Jinja2 dependencies are installed in the current environment
+- `WEB_HOST`, `WEB_PORT`, and `WEB_BASE_URL` are set correctly
+- port `8000` is available, or start with a different `--port`
+- the mounted `/data` directory exists if you expect reviewer pages to show database-backed content
 
 ### Outputs look empty
 

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+  <span class="pill">Privacy Policy</span>
+  <h1>OpenClaw privacy policy</h1>
+  <p class="lede">
+    OpenClaw is a self-hosted research tool. It is intended for marketplace analysis, not for consumer ordering,
+    account resale, or storefront operations.
+  </p>
+</section>
+
+<section class="panel">
+  <h2>Information processed</h2>
+  <ul class="clean">
+    <li>Configuration provided by the operator, including API credentials and local runtime settings.</li>
+    <li>Marketplace listing data collected through approved or demo integrations for research purposes.</li>
+    <li>Generated research outputs such as clustered opportunities, rankings, reports, and review exports.</li>
+    <li>OAuth callback query parameters such as <code>code</code>, <code>state</code>, and provider errors when an integration flow redirects back to OpenClaw.</li>
+  </ul>
+</section>
+
+<section class="panel">
+  <h2>How data is used</h2>
+  <ul class="clean">
+    <li>To analyze marketplace product opportunities and generate operator-facing research outputs.</li>
+    <li>To validate marketplace integrations and support provider review or compliance flows.</li>
+    <li>To troubleshoot connectivity, health, and local deployment issues.</li>
+  </ul>
+</section>
+
+<section class="panel">
+  <h2>Storage model</h2>
+  <ul class="clean">
+    <li>OpenClaw stores operational data locally in SQLite under the operator-managed data directory.</li>
+    <li>LLM enrichment is designed for local Ollama usage rather than a required hosted AI service.</li>
+    <li>Operators control hosting, retention, backups, and deployment access.</li>
+  </ul>
+</section>
+
+<section class="panel">
+  <h2>Contact</h2>
+  <p>Privacy requests and support questions can be sent to <a href="{{ support_mailto }}">{{ support_email }}</a>.</p>
+</section>
+{% endblock %}

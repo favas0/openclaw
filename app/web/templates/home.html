@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+  <span class="pill">Approval-Friendly Web Shell</span>
+  <h1>OpenClaw is a self-hosted marketplace research agent for product discovery and operator review.</h1>
+  <p class="lede">
+    OpenClaw helps operators collect marketplace listings, normalize them, cluster similar products,
+    enrich clusters with local model output, score opportunities with deterministic logic, and export review packs.
+    The core workflow remains the Python CLI; this web layer is a thin surface for website legitimacy,
+    policy pages, OAuth callbacks, and reviewer access.
+  </p>
+  <div class="cta-row">
+    <div class="metric">
+      <div>Primary workflow</div>
+      <strong>CLI-first</strong>
+      <div>Existing ingestion, scoring, reporting, and export commands remain unchanged.</div>
+    </div>
+    <div class="metric">
+      <div>Deployment shape</div>
+      <strong>Single app</strong>
+      <div>Same Python codebase, same SQLite database, same Docker-friendly development flow.</div>
+    </div>
+    <div class="metric">
+      <div>Review support</div>
+      <strong>Web pages + callbacks</strong>
+      <div>Privacy, terms, support, health, reviewer view, Etsy callback, and TikTok callback endpoints.</div>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>What OpenClaw does</h2>
+  <div class="grid">
+    <div>
+      <h3>Marketplace research</h3>
+      <ul class="clean">
+        <li>Collects source-specific marketplace listing data.</li>
+        <li>Normalizes noisy listing titles into comparable product signals.</li>
+        <li>Clusters overlapping listings into product opportunities.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Deterministic evaluation</h3>
+      <ul class="clean">
+        <li>Scores demand, competition, supplier fit, risk, economics, and review signals.</li>
+        <li>Stores outputs in SQLite for repeatable local operation.</li>
+        <li>Exports ranked products, shortlists, trend reports, and review packs.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Approval and compliance surface</h3>
+      <ul class="clean">
+        <li>Public-facing homepage and product description.</li>
+        <li>Privacy policy, terms, and support pages.</li>
+        <li>Dedicated OAuth callback URLs for Etsy and TikTok review flows.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Callback endpoints</h2>
+  <ul class="clean">
+    {% for route in oauth_routes %}
+    <li><strong>{{ route.provider }}</strong>: <code>{{ route.url }}</code></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}

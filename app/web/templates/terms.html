@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+  <span class="pill">Terms of Service</span>
+  <h1>OpenClaw terms of service</h1>
+  <p class="lede">
+    OpenClaw is provided as a self-hosted research and review tool. It is intended for lawful marketplace analysis,
+    internal evaluation, and operator decision support.
+  </p>
+</section>
+
+<section class="panel">
+  <h2>Permitted use</h2>
+  <ul class="clean">
+    <li>Use OpenClaw to collect, evaluate, and report on marketplace product signals.</li>
+    <li>Use the web shell to support provider review, compliance checks, and OAuth integration flows.</li>
+    <li>Operate the service only with credentials, data access, and marketplace permissions you are authorized to use.</li>
+  </ul>
+</section>
+
+<section class="panel">
+  <h2>Restrictions</h2>
+  <ul class="clean">
+    <li>Do not use OpenClaw to impersonate a marketplace, storefront, or consumer checkout flow.</li>
+    <li>Do not use OpenClaw for unlawful scraping, credential abuse, or policy-violating automation.</li>
+    <li>Do not rely on generated research output as a substitute for legal, financial, or compliance advice.</li>
+  </ul>
+</section>
+
+<section class="panel">
+  <h2>Operational responsibility</h2>
+  <ul class="clean">
+    <li>The operator remains responsible for deployment security, access control, data retention, and provider compliance.</li>
+    <li>The CLI pipeline remains the primary workflow for ingestion, scoring, and exports.</li>
+    <li>The web shell is intentionally thin and may expose reviewer information from the existing database when available.</li>
+  </ul>
+</section>
+{% endblock %}
